@@ -4,6 +4,14 @@ import { Fragment, useEffect } from "react";
 import { MapContainer, TileLayer, Polyline, CircleMarker, Marker, Tooltip, useMap } from "react-leaflet";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
+import "leaflet-rotate";
+
+// Opções do plugin leaflet-rotate (girar o mapa com dois dedos / botão bússola)
+const ROTATE_OPTIONS = {
+  rotate: true,
+  touchRotate: true,
+  rotateControl: { closeOnZeroBearing: false },
+} as Record<string, unknown>;
 import { BASE, REFERENCES } from "@/lib/config";
 import type { DriftPoint } from "@/lib/wind";
 
@@ -54,16 +62,25 @@ function FitDrift({ series }: { series: DriftSeries[] }) {
   return null;
 }
 
-export default function DriftMap({ series, activeLabel }: { series: DriftSeries[]; activeLabel?: string }) {
+export default function DriftMap({
+  series,
+  activeLabel,
+  fullscreen = false,
+}: {
+  series: DriftSeries[];
+  activeLabel?: string;
+  fullscreen?: boolean;
+}) {
   const refDist = 2600; // metros até o rótulo de referência
 
   return (
     <MapContainer
       center={[BASE.lat, BASE.lon]}
       zoom={13}
-      scrollWheelZoom={false}
+      scrollWheelZoom={fullscreen}
       style={{ height: "100%", width: "100%" }}
       attributionControl={false}
+      {...ROTATE_OPTIONS}
     >
       <TileLayer url="https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}" />
       <FitDrift series={series} />

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import dynamic from "next/dynamic";
 import { BASE, HOURS, MODELS, type ModelId } from "@/lib/config";
 import { cardinal, type LayerWind } from "@/lib/wind";
@@ -77,6 +77,36 @@ export default function Home() {
   const [day, setDay] = useState(1);
   const [hour, setHour] = useState(6);
   const [model, setModel] = useState<ModelId>("ecmwf_ifs025");
+  const [mapFull, setMapFull] = useState(false);
+  const fullRef = useRef<HTMLDivElement>(null);
+
+  const closeFull = useCallback(() => {
+    if (document.fullscreenElement) document.exitFullscreen().catch(() => {});
+    setMapFull(false);
+  }, []);
+
+  // Em tela cheia: tenta fullscreen nativo + travar em paisagem (quando o celular permite)
+  useEffect(() => {
+    if (!mapFull) return;
+    document.body.style.overflow = "hidden";
+    const el = fullRef.current;
+    if (el?.requestFullscreen) {
+      el.requestFullscreen()
+        .then(() => {
+          type LockableOrientation = ScreenOrientation & { lock?: (o: string) => Promise<void> };
+          (screen.orientation as LockableOrientation)?.lock?.("landscape").catch(() => {});
+        })
+        .catch(() => {});
+    }
+    const onFsChange = () => {
+      if (!document.fullscreenElement) setMapFull(false);
+    };
+    document.addEventListener("fullscreenchange", onFsChange);
+    return () => {
+      document.body.style.overflow = "";
+      document.removeEventListener("fullscreenchange", onFsChange);
+    };
+  }, [mapFull]);
 
   useEffect(() => {
     fetch("/api/forecast")
@@ -206,7 +236,16 @@ export default function Home() {
                   ))}
                 </div>
                 <div className="chips">
-                  {HOURS.map((h) => (
+                  <span className="chips-label">manhã</span>
+                  {HOURS.filter((h) => h < 12).map((h) => (
+                    <button key={h} className={hour === h ? "chip active" : "chip"} onClick={() => setHour(h)}>
+                      {String(h).padStart(2, "0")}h
+                    </button>
+                  ))}
+                </div>
+                <div className="chips">
+                  <span className="chips-label">tarde</span>
+                  {HOURS.filter((h) => h >= 12).map((h) => (
                     <button key={h} className={hour === h ? "chip active" : "chip"} onClick={() => setHour(h)}>
                       {String(h).padStart(2, "0")}h
                     </button>
@@ -317,6 +356,11 @@ export default function Home() {
               ) : (
                 <div className="map-loading">Carregando mapa…</div>
               )}
+              {series.length > 0 && (
+                <button className="map-expand" onClick={() => setMapFull(true)}>
+                  ⛶ Tela cheia
+                </button>
+              )}
             </div>
           </div>
 
@@ -423,6 +467,16 @@ export default function Home() {
           </div>
         </div>
       </section>
+
+      {mapFull && series.length > 0 && (
+        <div className="map-full" ref={fullRef}>
+          <DriftMap series={series} activeLabel={activeMeta.label} fullscreen />
+          <button className="map-full-close" onClick={closeFull}>
+            ✕ Fechar
+          </button>
+          <div className="map-full-hint">Arraste para mover · dois dedos para girar e ampliar</div>
+        </div>
+      )}
 
       <footer className="footer">
         <div className="wrap footer-inner">

@@ -34,8 +34,8 @@ export const PRESSURE_LEVELS = [1000, 975, 950, 925, 900, 850, 800, 700];
 
 export const TIMEZONE = "America/Sao_Paulo";
 
-// Horas exibidas no seletor (janela de voo da manhã)
-export const HOURS = [5, 6, 7, 8, 9];
+// Horas exibidas no seletor (janelas de voo da manhã e da tarde)
+export const HOURS = [5, 6, 7, 8, 9, 15, 16, 17, 18];
 
 // Taxa de subida assumida para o cálculo da deriva (m/s)
 export const CLIMB_RATE_MS = 1.0;

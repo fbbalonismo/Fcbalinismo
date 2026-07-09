@@ -23,7 +23,7 @@ App web usado pelo André (piloto de balão em Pedra Azul/ES) para planejar voos
 - `lib/wind.ts` — interpolação do perfil de vento em componentes u/v para as camadas AGL, conversões (m/ft, de°/para°, kt) e cálculo da trajetória de deriva (vetores encadeados camada a camada).
 - `app/api/forecast/route.ts` — rota que devolve tudo já calculado (revalidate 30 min).
 - `app/page.tsx` — página única (client component) com o visual criado no Claude Design pelo Diego (identidade da marca Voe Pedra Azul, tema escuro, fontes Poppins/Manrope): hero com semáforo de decolagem (Bom para voar / Atenção / Não voar), cards de nascer do sol/preparação/decolagem ideal/temperatura, tabela de camadas com barras de intensidade, cards de modelo selecionáveis (distância + rumo da deriva), seção institucional e CTA de reserva. Os estilos ficam em `app/globals.css` (classes semânticas, responsivo <900px e <560px).
-- `components/DriftMap.tsx` — mapa Leaflet (tiles de satélite Esri) com linhas de azimute, referências e polylines de deriva; o modelo ativo fica sólido e os demais tracejados; reenquadra sozinho via `FitDrift` (ResizeObserver — não remover, evita mapa deslocado). O mapa só monta depois que os dados chegam.
+- `components/DriftMap.tsx` — mapa Leaflet (tiles de satélite Esri) com linhas de azimute, referências e polylines de deriva; o modelo ativo fica sólido e os demais tracejados; reenquadra sozinho via `FitDrift` (ResizeObserver — não remover, evita mapa deslocado). O mapa só monta depois que os dados chegam. Usa o plugin `leaflet-rotate` (girar com dois dedos + controle bússola) e tem modo tela cheia (`.map-full` na page, com fullscreen nativo + trava de paisagem quando o navegador permite — iPhone não suporta, lá é overlay fixo).
 
 ## Comandos
 
