@@ -19,11 +19,11 @@ App web usado pelo André (piloto de balão em Pedra Azul/ES) para planejar voos
 ## Arquitetura
 
 - `lib/config.ts` — TODAS as configurações operacionais: coordenadas da base (ponto exato do André: -20.382314, -41.024572, elevação real 1062 m), referências por azimute (Rota do Carmo 0°, Aracê 90°, etc.), camadas-alvo, modelos, taxa de subida da deriva (1 m/s). Ajustes de local/referência são feitos aqui.
-- `lib/openmeteo.ts` — busca e parse da API Open-Meteo (níveis de pressão 1000–700 hPa + vento a 10 m, 3 modelos em uma chamada). A elevação real é passada via parâmetro `elevation`.
+- `lib/openmeteo.ts` — busca e parse da API Open-Meteo (níveis de pressão 1000–700 hPa + vento a 10 m + rajada + temperatura + nascer do sol, 3 modelos em uma chamada). A elevação real é passada via parâmetro `elevation`.
 - `lib/wind.ts` — interpolação do perfil de vento em componentes u/v para as camadas AGL, conversões (m/ft, de°/para°, kt) e cálculo da trajetória de deriva (vetores encadeados camada a camada).
 - `app/api/forecast/route.ts` — rota que devolve tudo já calculado (revalidate 30 min).
-- `app/page.tsx` — página única (client component): seletores de dia/hora/modelo, resumo operacional, tabela de camadas e mapa.
-- `components/DriftMap.tsx` — mapa Leaflet (tiles de satélite Esri) com linhas de azimute, referências e polylines de deriva; reenquadra sozinho via `FitDrift`.
+- `app/page.tsx` — página única (client component) com o visual criado no Claude Design pelo Diego (identidade da marca Voe Pedra Azul, tema escuro, fontes Poppins/Manrope): hero com semáforo de decolagem (Bom para voar / Atenção / Não voar), cards de nascer do sol/preparação/decolagem ideal/temperatura, tabela de camadas com barras de intensidade, cards de modelo selecionáveis (distância + rumo da deriva), seção institucional e CTA de reserva. Os estilos ficam em `app/globals.css` (classes semânticas, responsivo <900px e <560px).
+- `components/DriftMap.tsx` — mapa Leaflet (tiles de satélite Esri) com linhas de azimute, referências e polylines de deriva; o modelo ativo fica sólido e os demais tracejados; reenquadra sozinho via `FitDrift` (ResizeObserver — não remover, evita mapa deslocado). O mapa só monta depois que os dados chegam.
 
 ## Comandos
 
