@@ -6,6 +6,23 @@ import { BASE, HOURS, MODELS, type ModelId } from "@/lib/config";
 import { cardinal, type LayerWind } from "@/lib/wind";
 import type { ForecastResponse, HourForecast } from "@/lib/openmeteo";
 import type { DriftSeries } from "@/components/DriftMap";
+import type { FlightAnalysis } from "@/lib/gpx";
+
+interface RainData {
+  totalRegistros: number;
+  placar: Record<string, { acertos: number; total: number }>;
+}
+interface FlightsData {
+  flights: FlightAnalysis[];
+  totalVoos: number;
+  media: Record<string, { dirErr: number; speedBias: number; voos: number }>;
+}
+const INTENSITIES = [
+  { id: "sem", label: "Sem chuva" },
+  { id: "leve", label: "Chuva leve" },
+  { id: "moderada", label: "Moderada" },
+  { id: "intensa", label: "Intensa" },
+] as const;
 
 const DriftMap = dynamic(() => import("@/components/DriftMap"), {
   ssr: false,
@@ -79,6 +96,70 @@ export default function Home() {
   const [model, setModel] = useState<ModelId>("ecmwf_ifs025");
   const [mapFull, setMapFull] = useState(false);
   const fullRef = useRef<HTMLDivElement>(null);
+  const [rain, setRain] = useState<RainData | null>(null);
+  const [rainMsg, setRainMsg] = useState<string | null>(null);
+  const [flights, setFlights] = useState<FlightsData | null>(null);
+  const [uploadMsg, setUploadMsg] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+
+  const loadRain = useCallback(() => {
+    fetch("/api/chuva").then((r) => r.json()).then(setRain).catch(() => {});
+  }, []);
+  const loadFlights = useCallback(() => {
+    fetch("/api/voos").then((r) => r.json()).then(setFlights).catch(() => {});
+  }, []);
+  useEffect(() => {
+    loadRain();
+    loadFlights();
+  }, [loadRain, loadFlights]);
+
+  const registerRain = useCallback(
+    async (intensity: string) => {
+      setBusy(true);
+      setRainMsg(null);
+      try {
+        const r = await fetch("/api/chuva", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ intensity }),
+        });
+        const j = await r.json();
+        if (!r.ok) throw new Error(j.error);
+        setRainMsg(`✓ Registrado: ${INTENSITIES.find((i) => i.id === intensity)?.label} às ${j.record.time.slice(11)}`);
+        loadRain();
+      } catch (e) {
+        setRainMsg(`Erro ao registrar: ${e instanceof Error ? e.message : e}`);
+      } finally {
+        setBusy(false);
+      }
+    },
+    [loadRain]
+  );
+
+  const uploadGpx = useCallback(
+    async (file: File) => {
+      setBusy(true);
+      setUploadMsg("Analisando o voo…");
+      try {
+        const fd = new FormData();
+        fd.append("file", file);
+        const r = await fetch("/api/voos", { method: "POST", body: fd });
+        const j = await r.json();
+        if (!r.ok) throw new Error(j.error);
+        const a: FlightAnalysis = j.analysis;
+        setUploadMsg(
+          j.aviso ??
+            `✓ Voo de ${a.startLocal.slice(0, 10).split("-").reverse().join("/")} analisado: máx ${a.maxAglM} m, ${a.distanceKm} km. Melhor direção: ${a.bestDirection} · melhor intensidade: ${a.bestSpeed}.`
+        );
+        loadFlights();
+      } catch (e) {
+        setUploadMsg(`Erro: ${e instanceof Error ? e.message : e}`);
+      } finally {
+        setBusy(false);
+      }
+    },
+    [loadFlights]
+  );
 
   const closeFull = useCallback(() => {
     if (document.fullscreenElement) document.exitFullscreen().catch(() => {});
@@ -159,6 +240,21 @@ export default function Home() {
   });
 
   const sunrise = data?.sunrise?.[dateISO];
+  const sunset = data?.sunset?.[dateISO];
+
+  // Precipitação hora a hora do dia selecionado, por modelo
+  const rainHours = useMemo(() => {
+    if (!data) return [];
+    return Array.from({ length: 24 }, (_, h) => {
+      const t = `${dateISO}T${String(h).padStart(2, "0")}:00`;
+      const vals = MODELS.map((m) => data.models[m.id]?.hours.find((x) => x.time === t)?.precipMm ?? null);
+      return { h, vals };
+    });
+  }, [data, dateISO]);
+  const maxMm = Math.max(0.6, ...rainHours.flatMap((r) => r.vals.map((v) => v ?? 0)));
+  const dayTotals = MODELS.map((_, i) =>
+    Math.round(rainHours.reduce((a, r) => a + (r.vals[i] ?? 0), 0) * 10) / 10
+  );
 
   return (
     <div>
@@ -170,9 +266,10 @@ export default function Home() {
           </a>
           <nav className="nav-links">
             <a href="#previsao">Previsão</a>
+            <a href="#chuva">Chuva</a>
             <a href="#modelos">Modelos</a>
+            <a href="#voos">Voos</a>
             <a href="#sobre">Sobre</a>
-            <a href="#contato">Contato</a>
           </nav>
           <a className="cta" href={WHATSAPP}>
             Reservar voo
@@ -281,6 +378,13 @@ export default function Home() {
             <div className="n">brisa mais estável</div>
           </div>
           <div className="sun-card">
+            <div className="k">Pôr do sol</div>
+            <div className="v" style={{ color: "#F5A623" }}>
+              {sunset ?? "—"}
+            </div>
+            <div className="n">janela da tarde fecha antes</div>
+          </div>
+          <div className="sun-card">
             <div className="k">Temp. prevista</div>
             <div className="v" style={{ color: "#57B7EA" }}>
               {active?.tempC != null ? `${active.tempC}°C` : "—"}
@@ -338,6 +442,97 @@ export default function Home() {
               Forte
             </span>
             <span style={{ marginLeft: "auto" }}>Seta aponta para onde o balão vai · alturas acima da base (1062 m)</span>
+          </div>
+        </div>
+      </section>
+
+      <section id="chuva" className="wrap" style={{ paddingTop: 56 }}>
+        <div className="kicker">Precipitação</div>
+        <h2 className="section-title" style={{ marginBottom: 22 }}>
+          Chuva — os 3 modelos comparados
+        </h2>
+
+        <div className="layers-card" style={{ padding: "18px 18px 14px" }}>
+          <div className="rain-legend">
+            {MODELS.map((m, i) => (
+              <span key={m.id}>
+                <i style={{ background: m.color }} /> {m.label} · {dayTotals[i].toFixed(1)} mm no dia
+              </span>
+            ))}
+          </div>
+          <div className="rain-chart">
+            {dayTotals.every((t) => t === 0) && (
+              <div className="rain-dry">☀️ Nenhum modelo prevê chuva neste dia</div>
+            )}
+            {rainHours.map(({ h, vals }) => (
+              <div
+                key={h}
+                className="rain-col"
+                title={`${String(h).padStart(2, "0")}h — ${MODELS.map((m, i) => `${m.label}: ${(vals[i] ?? 0).toFixed(1)} mm`).join(" · ")}`}
+              >
+                <div className="rain-bars">
+                  {vals.map((v, i) => (
+                    <i
+                      key={i}
+                      style={{ height: `${Math.min(100, ((v ?? 0) / maxMm) * 100)}%`, background: MODELS[i].color }}
+                    />
+                  ))}
+                </div>
+                <span>{h % 3 === 0 ? `${h}h` : ""}</span>
+              </div>
+            ))}
+          </div>
+          <div className="rain-note">
+            mm de chuva previstos por hora em {dateLabel} · barras por modelo · toque numa hora para ver os valores
+          </div>
+        </div>
+
+        <div className="obs-grid">
+          <div className="card">
+            <div className="card-label">Está chovendo agora na base?</div>
+            <p className="obs-help">
+              Registre o que você está vendo — cada registro guarda também o que os 3 modelos previam para esta hora.
+            </p>
+            <div className="chips">
+              {INTENSITIES.map((i) => (
+                <button key={i.id} className="chip" disabled={busy} onClick={() => registerRain(i.id)}>
+                  {i.label}
+                </button>
+              ))}
+            </div>
+            {rainMsg && <p className="obs-msg">{rainMsg}</p>}
+          </div>
+
+          <div className="card">
+            <div className="card-label">
+              Placar de realismo · {rain?.totalRegistros ?? 0} {(rain?.totalRegistros ?? 0) === 1 ? "registro" : "registros"}
+            </div>
+            {rain && rain.totalRegistros > 0 ? (
+              <div className="placar">
+                {MODELS.map((m) => {
+                  const p = rain.placar?.[m.label];
+                  const pct = p && p.total > 0 ? Math.round((p.acertos / p.total) * 100) : 0;
+                  return (
+                    <div key={m.id} className="placar-row">
+                      <span className="placar-name" style={{ color: m.color }}>
+                        {m.label}
+                      </span>
+                      <div className="placar-bar">
+                        <i style={{ width: `${pct}%`, background: m.color }} />
+                      </div>
+                      <span className="placar-num">
+                        {p ? `${p.acertos}/${p.total}` : "—"}
+                      </span>
+                    </div>
+                  );
+                })}
+              </div>
+            ) : (
+              <p className="obs-help">Ainda sem registros — comece hoje!</p>
+            )}
+            <p className="obs-help" style={{ marginTop: 10 }}>
+              Com ~1 mês de registros dá para dizer qual modelo é o mais realista aqui na região.
+            </p>
           </div>
         </div>
       </section>
@@ -405,6 +600,95 @@ export default function Home() {
             </div>
           </div>
         </div>
+      </section>
+
+      <section id="voos" className="wrap" style={{ paddingTop: 56 }}>
+        <div className="kicker">Pós-voo</div>
+        <h2 className="section-title" style={{ marginBottom: 22 }}>
+          Envie o GPX do seu voo
+        </h2>
+
+        <div className="obs-grid">
+          <div className="card">
+            <div className="card-label">Enviar arquivo do voo</div>
+            <p className="obs-help">
+              No Wikiloc: abra a trilha → menu ⋯ → <b>Exportar arquivo → GPX</b>. Envie até 2 dias depois do voo — a
+              ferramenta compara o traçado real com a previsão dos 3 modelos, faixa por faixa de altitude, e guarda
+              tudo no histórico.
+            </p>
+            <label className={busy ? "upload-btn disabled" : "upload-btn"}>
+              📂 Escolher arquivo .gpx
+              <input
+                type="file"
+                accept=".gpx,application/gpx+xml"
+                style={{ display: "none" }}
+                disabled={busy}
+                onChange={(e) => {
+                  const f = e.target.files?.[0];
+                  if (f) uploadGpx(f);
+                  e.target.value = "";
+                }}
+              />
+            </label>
+            {uploadMsg && <p className="obs-msg">{uploadMsg}</p>}
+          </div>
+
+          <div className="card">
+            <div className="card-label">
+              Média acumulada · {flights?.totalVoos ?? 0} {(flights?.totalVoos ?? 0) === 1 ? "voo" : "voos"}
+            </div>
+            {flights && Object.keys(flights.media).length > 0 ? (
+              <div className="placar">
+                {MODELS.map((m) => {
+                  const s = flights.media[m.label];
+                  return (
+                    <div key={m.id} className="placar-row">
+                      <span className="placar-name" style={{ color: m.color }}>
+                        {m.label}
+                      </span>
+                      <span className="placar-num" style={{ width: "auto", flex: 1, textAlign: "right" }}>
+                        {s ? `direção ±${s.dirErr}° · vento ${s.speedBias > 0 ? "+" : ""}${s.speedBias} kt` : "—"}
+                      </span>
+                    </div>
+                  );
+                })}
+              </div>
+            ) : (
+              <p className="obs-help">Nenhum voo analisado ainda.</p>
+            )}
+            <p className="obs-help" style={{ marginTop: 10 }}>
+              Vento negativo = o modelo subestimou. A cada voo enviado a média melhora — é a calibração automática da
+              ferramenta.
+            </p>
+          </div>
+        </div>
+
+        {flights && flights.flights.length > 0 && (
+          <div className="flight-list">
+            {flights.flights.map((f) => (
+              <div key={f.startLocal} className="flight-row">
+                <div>
+                  <b>{f.startLocal.slice(0, 10).split("-").reverse().join("/")}</b>{" "}
+                  <span className="obs-help">
+                    {f.startLocal.slice(11)}–{f.endLocal.slice(11)}
+                  </span>
+                </div>
+                <div className="obs-help">
+                  máx {f.maxAglM} m · {f.distanceKm} km
+                </div>
+                <div className="obs-help">
+                  {f.bestDirection ? (
+                    <>
+                      direção: <b>{f.bestDirection}</b> · vento: <b>{f.bestSpeed}</b>
+                    </>
+                  ) : (
+                    "sem comparação (fora do alcance)"
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
       </section>
 
       <section id="sobre" className="wrap" style={{ paddingTop: 72 }}>
