@@ -25,27 +25,36 @@ export interface DriftSeries {
   drift: DriftPoint[];
 }
 
-// Reenquadra o mapa para conter a base e todas as trajetórias
+// Reenquadra o mapa para conter a base e todas as trajetórias.
+// ResizeObserver corrige o tamanho medido pelo Leaflet quando o layout
+// termina depois do mount (fontes, grid) — sem isso os tiles ficam deslocados.
 function FitDrift({ series }: { series: DriftSeries[] }) {
   const map = useMap();
   // Assinatura estável: só reenquadra quando a trajetória de fato muda
   const sig = series.map((s) => `${s.label}:${s.drift.at(-1)?.lat ?? 0},${s.drift.at(-1)?.lon ?? 0}`).join("|");
   useEffect(() => {
-    const pts: [number, number][] = [[BASE.lat, BASE.lon]];
-    for (const s of series) for (const p of s.drift) pts.push([p.lat, p.lon]);
-    const bounds = L.latLngBounds(pts).pad(0.35);
-    // Aguarda o container ter tamanho medido antes de enquadrar
-    const t = setTimeout(() => {
-      map.invalidateSize();
-      map.fitBounds(bounds, { maxZoom: 14 });
-    }, 60);
-    return () => clearTimeout(t);
+    const fit = () => {
+      const el = map.getContainer();
+      if (!el || el.clientWidth === 0 || el.clientHeight === 0) return;
+      const pts: [number, number][] = [[BASE.lat, BASE.lon]];
+      for (const s of series) for (const p of s.drift) pts.push([p.lat, p.lon]);
+      map.invalidateSize({ animate: false });
+      map.fitBounds(L.latLngBounds(pts).pad(0.25), { maxZoom: 14, animate: false });
+    };
+    fit();
+    const t = setTimeout(fit, 150);
+    const ro = new ResizeObserver(fit);
+    ro.observe(map.getContainer());
+    return () => {
+      clearTimeout(t);
+      ro.disconnect();
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [map, sig]);
   return null;
 }
 
-export default function DriftMap({ series }: { series: DriftSeries[] }) {
+export default function DriftMap({ series, activeLabel }: { series: DriftSeries[]; activeLabel?: string }) {
   const refDist = 2600; // metros até o rótulo de referência
 
   return (
@@ -90,27 +99,40 @@ export default function DriftMap({ series }: { series: DriftSeries[] }) {
         </Tooltip>
       </CircleMarker>
 
-      {/* Trajetórias de deriva */}
-      {series.map((s) => (
-        <Fragment key={s.label}>
-          <Polyline
-            positions={s.drift.map((p) => [p.lat, p.lon])}
-            pathOptions={{ color: s.color, weight: 4, opacity: 0.95 }}
-          />
-          {s.drift.slice(1).map((p, i) => (
-            <CircleMarker
-              key={i}
-              center={[p.lat, p.lon]}
-              radius={4}
-              pathOptions={{ color: "#fff", weight: 1.5, fillColor: s.color, fillOpacity: 1 }}
-            >
-              <Tooltip direction="top" offset={[0, -6]}>
-                {s.label} · {p.m} m · {p.kt.toFixed(1)} kt → {p.to}°
-              </Tooltip>
-            </CircleMarker>
-          ))}
-        </Fragment>
-      ))}
+      {/* Trajetórias de deriva (modelo ativo em destaque, demais tracejados) */}
+      {series.map((s) => {
+        const active = !activeLabel || s.label === activeLabel;
+        return (
+          <Fragment key={s.label}>
+            <Polyline
+              positions={s.drift.map((p) => [p.lat, p.lon])}
+              pathOptions={{
+                color: s.color,
+                weight: active ? 4 : 2.5,
+                opacity: active ? 0.95 : 0.5,
+                dashArray: active ? undefined : "6 7",
+              }}
+            />
+            {s.drift.slice(1).map((p, i) => (
+              <CircleMarker
+                key={i}
+                center={[p.lat, p.lon]}
+                radius={active ? 4 : 2.5}
+                pathOptions={{
+                  color: "#fff",
+                  weight: active ? 1.5 : 0.8,
+                  fillColor: s.color,
+                  fillOpacity: active ? 1 : 0.5,
+                }}
+              >
+                <Tooltip direction="top" offset={[0, -6]}>
+                  {s.label} · {p.m} m · {p.kt.toFixed(1)} kt → {p.to}°
+                </Tooltip>
+              </CircleMarker>
+            ))}
+          </Fragment>
+        );
+      })}
     </MapContainer>
   );
 }

@@ -1,22 +1,29 @@
 import type { Metadata, Viewport } from "next";
-import { Geist } from "next/font/google";
+import { Poppins, Manrope } from "next/font/google";
 import "./globals.css";
 
-const geistSans = Geist({
-  variable: "--font-geist-sans",
+const poppins = Poppins({
+  variable: "--font-poppins",
   subsets: ["latin"],
+  weight: ["400", "600", "700", "800"],
+});
+
+const manrope = Manrope({
+  variable: "--font-manrope",
+  subsets: ["latin"],
+  weight: ["400", "500", "600", "700", "800"],
 });
 
 export const metadata: Metadata = {
   title: "Voe Pedra Azul — Vento em Camadas",
   description:
-    "Previsão de vento em camadas de 100 m (até 1000 m AGL) para a base Voe Pedra Azul, com trajetória de deriva do balão nos modelos ECMWF, GFS e ICON.",
+    "Previsão de vento em camadas de 100 m (até 1800 m acima da base) para a base Voe Pedra Azul, com trajetória de deriva do balão nos modelos ECMWF, GFS e ICON.",
 };
 
 export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
-  themeColor: "#0b1d3a",
+  themeColor: "#0A1724",
 };
 
 export default function RootLayout({
@@ -25,7 +32,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="pt-BR" className={`${geistSans.variable} h-full antialiased`}>
+    <html lang="pt-BR" className={`${poppins.variable} ${manrope.variable} h-full antialiased`}>
       <body className="min-h-full flex flex-col">{children}</body>
     </html>
   );

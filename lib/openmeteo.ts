@@ -4,6 +4,8 @@ import { interpolateLayers, driftPath, type LevelPoint, type LayerWind, type Dri
 export interface HourForecast {
   time: string; // ISO local (America/Sao_Paulo), ex: 2026-07-09T06:00
   surface: { kt: number; from: number; to: number } | null;
+  gustKt: number | null;
+  tempC: number | null;
   layers: LayerWind[];
   drift: DriftPoint[];
 }
@@ -12,13 +14,14 @@ export interface ForecastResponse {
   elevation: number;
   updatedAt: string;
   base: { lat: number; lon: number; name: string };
+  sunrise: Record<string, string>; // data (YYYY-MM-DD) -> hora local (HH:MM)
   models: Record<ModelId, { hours: HourForecast[] }>;
 }
 
 type Hourly = Record<string, (number | null)[] | string[]>;
 
 function buildUrl(): string {
-  const vars: string[] = ["wind_speed_10m", "wind_direction_10m"];
+  const vars: string[] = ["wind_speed_10m", "wind_direction_10m", "wind_gusts_10m", "temperature_2m"];
   for (const p of PRESSURE_LEVELS) {
     vars.push(`wind_speed_${p}hPa`, `wind_direction_${p}hPa`, `geopotential_height_${p}hPa`);
   }
@@ -27,6 +30,7 @@ function buildUrl(): string {
     longitude: String(BASE.lon),
     elevation: String(BASE.elevation),
     hourly: vars.join(","),
+    daily: "sunrise",
     models: MODELS.map((m) => m.id).join(","),
     timezone: TIMEZONE,
     wind_speed_unit: "kn",
@@ -48,6 +52,17 @@ export async function fetchForecast(): Promise<ForecastResponse> {
   const hourly: Hourly = data.hourly;
   const elevation: number = data.elevation;
   const times = hourly.time as string[];
+
+  // Nascer do sol vem sufixado por modelo, mas é igual em todos — usa o primeiro disponível
+  const sunrise: Record<string, string> = {};
+  const daily = data.daily ?? {};
+  const sunriseKey = Object.keys(daily).find((k) => k.startsWith("sunrise"));
+  if (sunriseKey) {
+    (daily.time as string[]).forEach((date: string, i: number) => {
+      const iso = (daily[sunriseKey] as string[])[i];
+      if (iso) sunrise[date] = iso.slice(11, 16);
+    });
+  }
 
   const models = {} as ForecastResponse["models"];
 
@@ -71,9 +86,13 @@ export async function fetchForecast(): Promise<ForecastResponse> {
         profile.push({ heightAgl, speedKt: kt, dirFrom: dir });
       }
 
+      const gust = num(hourly, `wind_gusts_10m_${model.id}`, i);
+      const temp = num(hourly, `temperature_2m_${model.id}`, i);
       const layers = interpolateLayers(profile);
       return {
         time,
+        gustKt: gust !== null ? Math.round(gust * 10) / 10 : null,
+        tempC: temp !== null ? Math.round(temp) : null,
         surface:
           sfcKt !== null && sfcDir !== null
             ? { kt: Math.round(sfcKt * 10) / 10, from: Math.round(sfcDir), to: Math.round((sfcDir + 180) % 360) }
@@ -90,6 +109,7 @@ export async function fetchForecast(): Promise<ForecastResponse> {
     elevation,
     updatedAt: new Date().toISOString(),
     base: { lat: BASE.lat, lon: BASE.lon, name: BASE.name },
+    sunrise,
     models,
   };
 }

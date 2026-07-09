@@ -23,9 +23,9 @@ export const LAYERS_M = [
 ];
 
 export const MODELS = [
-  { id: "ecmwf_ifs025", label: "ECMWF", color: "#2563eb" },
-  { id: "gfs_seamless", label: "GFS", color: "#dc2626" },
-  { id: "icon_seamless", label: "ICON", color: "#059669" },
+  { id: "ecmwf_ifs025", label: "ECMWF", color: "#57B7EA", abbr: "EC", provider: "Centro Europeu" },
+  { id: "gfs_seamless", label: "GFS", color: "#F5A623", abbr: "GF", provider: "NOAA · EUA" },
+  { id: "icon_seamless", label: "ICON", color: "#7ED957", abbr: "IC", provider: "DWD · Alemanha" },
 ] as const;
 
 export type ModelId = (typeof MODELS)[number]["id"];
