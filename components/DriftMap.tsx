@@ -17,9 +17,15 @@ import type { DriftPoint } from "@/lib/wind";
 
 const DEG = Math.PI / 180;
 
-function pointAtBearing(bearing: number, distM: number): [number, number] {
-  const lat = BASE.lat + (distM * Math.cos(bearing * DEG)) / 111_320;
-  const lon = BASE.lon + (distM * Math.sin(bearing * DEG)) / (111_320 * Math.cos(BASE.lat * DEG));
+export interface MapOrigin {
+  lat: number;
+  lon: number;
+  name: string;
+}
+
+function pointAtBearing(origin: MapOrigin, bearing: number, distM: number): [number, number] {
+  const lat = origin.lat + (distM * Math.cos(bearing * DEG)) / 111_320;
+  const lon = origin.lon + (distM * Math.sin(bearing * DEG)) / (111_320 * Math.cos(origin.lat * DEG));
   return [lat, lon];
 }
 
@@ -36,15 +42,17 @@ export interface DriftSeries {
 // Reenquadra o mapa para conter a base e todas as trajetórias.
 // ResizeObserver corrige o tamanho medido pelo Leaflet quando o layout
 // termina depois do mount (fontes, grid) — sem isso os tiles ficam deslocados.
-function FitDrift({ series }: { series: DriftSeries[] }) {
+function FitDrift({ series, origin }: { series: DriftSeries[]; origin: MapOrigin }) {
   const map = useMap();
   // Assinatura estável: só reenquadra quando a trajetória de fato muda
-  const sig = series.map((s) => `${s.label}:${s.drift.at(-1)?.lat ?? 0},${s.drift.at(-1)?.lon ?? 0}`).join("|");
+  const sig =
+    `${origin.lat},${origin.lon}|` +
+    series.map((s) => `${s.label}:${s.drift.at(-1)?.lat ?? 0},${s.drift.at(-1)?.lon ?? 0}`).join("|");
   useEffect(() => {
     const fit = () => {
       const el = map.getContainer();
       if (!el || el.clientWidth === 0 || el.clientHeight === 0) return;
-      const pts: [number, number][] = [[BASE.lat, BASE.lon]];
+      const pts: [number, number][] = [[origin.lat, origin.lon]];
       for (const s of series) for (const p of s.drift) pts.push([p.lat, p.lon]);
       map.invalidateSize({ animate: false });
       map.fitBounds(L.latLngBounds(pts).pad(0.25), { maxZoom: 14, animate: false });
@@ -66,16 +74,20 @@ export default function DriftMap({
   series,
   activeLabel,
   fullscreen = false,
+  origin = { lat: BASE.lat, lon: BASE.lon, name: "Base Voe Pedra Azul" },
+  showRefs = true,
 }: {
   series: DriftSeries[];
   activeLabel?: string;
   fullscreen?: boolean;
+  origin?: MapOrigin;
+  showRefs?: boolean;
 }) {
   const refDist = 2600; // metros até o rótulo de referência
 
   return (
     <MapContainer
-      center={[BASE.lat, BASE.lon]}
+      center={[origin.lat, origin.lon]}
       zoom={13}
       scrollWheelZoom={fullscreen}
       style={{ height: "100%", width: "100%" }}
@@ -83,11 +95,11 @@ export default function DriftMap({
       {...ROTATE_OPTIONS}
     >
       <TileLayer url="https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}" />
-      <FitDrift series={series} />
+      <FitDrift series={series} origin={origin} />
 
-      {/* Linhas de azimute e rótulos das referências */}
-      {REFERENCES.map((ref) => {
-        const end = pointAtBearing(ref.bearing, refDist);
+      {/* Linhas de azimute e rótulos das referências (só na base de Pedra Azul) */}
+      {showRefs && REFERENCES.map((ref) => {
+        const end = pointAtBearing(origin, ref.bearing, refDist);
         return (
           <Fragment key={ref.bearing}>
             <Polyline
@@ -105,14 +117,14 @@ export default function DriftMap({
         );
       })}
 
-      {/* Base */}
+      {/* Ponto de decolagem */}
       <CircleMarker
-        center={[BASE.lat, BASE.lon]}
+        center={[origin.lat, origin.lon]}
         radius={7}
         pathOptions={{ color: "#fff", weight: 2, fillColor: "#e11d48", fillOpacity: 1 }}
       >
         <Tooltip direction="bottom" offset={[0, 8]} permanent className="base-tooltip">
-          Base Voe Pedra Azul
+          {origin.name}
         </Tooltip>
       </CircleMarker>
 
@@ -143,7 +155,7 @@ export default function DriftMap({
                 }}
               >
                 <Tooltip direction="top" offset={[0, -6]}>
-                  {s.label} · {p.m} m · {p.kt.toFixed(1)} kt → {p.to}°
+                  {s.label} · {p.m} m · {(p.kt * 1.852).toFixed(0)} km/h → {p.to}°
                 </Tooltip>
               </CircleMarker>
             ))}

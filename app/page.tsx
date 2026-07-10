@@ -2,8 +2,9 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import dynamic from "next/dynamic";
-import { BASE, HOURS, MODELS, type ModelId } from "@/lib/config";
-import { cardinal, type LayerWind } from "@/lib/wind";
+import { HOURS, MODELS, type ModelId } from "@/lib/config";
+import { cardinal, ktToKmh, type LayerWind } from "@/lib/wind";
+import type { PickedLoc } from "@/components/LocationPicker";
 import type { ForecastResponse, HourForecast } from "@/lib/openmeteo";
 import type { DriftSeries } from "@/components/DriftMap";
 import type { FlightAnalysis } from "@/lib/gpx";
@@ -27,6 +28,11 @@ const INTENSITIES = [
 const DriftMap = dynamic(() => import("@/components/DriftMap"), {
   ssr: false,
   loading: () => <div className="map-loading">Carregando mapa…</div>,
+});
+
+const LocationPicker = dynamic(() => import("@/components/LocationPicker"), {
+  ssr: false,
+  loading: () => <div className="picker-overlay map-loading">Carregando…</div>,
 });
 
 const DAY_LABELS = ["Hoje", "Amanhã", "Dep. amanhã"];
@@ -62,12 +68,12 @@ function verdict(layers: LayerWind[], surfaceKt: number | null) {
   return { label: "Não voar", hint: "Vento forte nas camadas baixas.", color: "#EF5D5D" };
 }
 
-function driftEndInfo(hour: HourForecast | undefined) {
+function driftEndInfo(hour: HourForecast | undefined, origin: { lat: number; lon: number }) {
   const end = hour?.drift.at(-1);
   if (!end) return null;
   const DEG = Math.PI / 180;
-  const dy = (end.lat - BASE.lat) * 111_320;
-  const dx = (end.lon - BASE.lon) * 111_320 * Math.cos(BASE.lat * DEG);
+  const dy = (end.lat - origin.lat) * 111_320;
+  const dx = (end.lon - origin.lon) * 111_320 * Math.cos(origin.lat * DEG);
   const km = Math.hypot(dx, dy) / 1000;
   const bearing = (Math.atan2(dx, dy) / DEG + 360) % 360;
   return { km, bearing, dx, dy };
@@ -101,6 +107,25 @@ export default function Home() {
   const [flights, setFlights] = useState<FlightsData | null>(null);
   const [uploadMsg, setUploadMsg] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [loc, setLoc] = useState<PickedLoc | null>(null);
+  const [pickerOpen, setPickerOpen] = useState(false);
+
+  // Restaura o último local escolhido
+  useEffect(() => {
+    try {
+      const s = localStorage.getItem("voe-loc");
+      if (s) setLoc(JSON.parse(s));
+    } catch {}
+  }, []);
+
+  const selectLoc = useCallback((l: PickedLoc | null) => {
+    setLoc(l);
+    setPickerOpen(false);
+    try {
+      if (l) localStorage.setItem("voe-loc", JSON.stringify(l));
+      else localStorage.removeItem("voe-loc");
+    } catch {}
+  }, []);
 
   const loadRain = useCallback(() => {
     fetch("/api/chuva").then((r) => r.json()).then(setRain).catch(() => {});
@@ -190,11 +215,16 @@ export default function Home() {
   }, [mapFull]);
 
   useEffect(() => {
-    fetch("/api/forecast")
+    setData(null);
+    setError(null);
+    const url = loc
+      ? `/api/forecast?lat=${loc.lat}&lon=${loc.lon}&name=${encodeURIComponent(loc.name)}`
+      : "/api/forecast";
+    fetch(url)
       .then((r) => (r.ok ? r.json() : Promise.reject(new Error(`HTTP ${r.status}`))))
       .then(setData)
       .catch((e) => setError(String(e.message ?? e)));
-  }, []);
+  }, [loc]);
 
   const dateISO = dateForDay(day);
   const targetTime = `${dateISO}T${String(hour).padStart(2, "0")}:00`;
@@ -216,8 +246,8 @@ export default function Home() {
 
   // Concordância: dispersão dos pontos finais das 3 trajetórias
   const agreement = useMemo(() => {
-    if (!byModel) return null;
-    const ends = MODELS.map((m) => driftEndInfo(byModel[m.id])).filter(Boolean) as {
+    if (!byModel || !data) return null;
+    const ends = MODELS.map((m) => driftEndInfo(byModel[m.id], data.base)).filter(Boolean) as {
       km: number;
       dx: number;
       dy: number;
@@ -230,7 +260,7 @@ export default function Home() {
         maxSep = Math.max(maxSep, Math.hypot(ends[i].dx - ends[j].dx, ends[i].dy - ends[j].dy) / 1000);
     const pct = Math.max(20, Math.min(100, Math.round(100 - (maxSep / Math.max(avgKm, 0.1)) * 100)));
     return { pct, avgKm, maxSep };
-  }, [byModel]);
+  }, [byModel, data]);
 
   const dateLabel = new Date(`${targetTime}:00-03:00`).toLocaleDateString("pt-BR", {
     weekday: "short",
@@ -282,7 +312,8 @@ export default function Home() {
         <div className="wrap hero-inner">
           <div className="badge">
             <span className="dot" />
-            Base Pedra Azul · Domingos Martins — ES
+            {loc ? loc.name : "Base Pedra Azul · Domingos Martins — ES"}
+            {data ? ` · ${Math.round(data.elevation)} m` : ""}
           </div>
           <h1>
             Vento em camadas para o seu <em>próximo amanhecer</em>
@@ -304,12 +335,14 @@ export default function Home() {
                     <div className="fact">
                       <div className="k">Vento superfície</div>
                       <div className="v">
-                        {active.surface ? `${active.surface.kt.toFixed(0)} kt ${cardinal(active.surface.from)}` : "—"}
+                        {active.surface
+                          ? `${ktToKmh(active.surface.kt).toFixed(0)} km/h ${cardinal(active.surface.from)}`
+                          : "—"}
                       </div>
                     </div>
                     <div className="fact">
                       <div className="k">Rajada máx.</div>
-                      <div className="v">{active.gustKt !== null ? `${active.gustKt.toFixed(0)} kt` : "—"}</div>
+                      <div className="v">{active.gustKt !== null ? `${ktToKmh(active.gustKt).toFixed(0)} km/h` : "—"}</div>
                     </div>
                     <div className="fact">
                       <div className="k">Concordância</div>
@@ -347,6 +380,16 @@ export default function Home() {
                       {String(h).padStart(2, "0")}h
                     </button>
                   ))}
+                </div>
+                <div className="chips">
+                  <button className="chip loc-chip" onClick={() => setPickerOpen(true)}>
+                    📍 {loc ? "Trocar local de decolagem" : "Escolher outro local de decolagem"}
+                  </button>
+                  {loc && (
+                    <button className="chip" onClick={() => selectLoc(null)}>
+                      ↩ Voltar para Pedra Azul
+                    </button>
+                  )}
                 </div>
               </div>
             </div>
@@ -546,8 +589,8 @@ export default function Home() {
         <div className="models-grid">
           <div className="map-card">
             <div className="map-holder">
-              {series.length > 0 ? (
-                <DriftMap series={series} activeLabel={activeMeta.label} />
+              {series.length > 0 && data ? (
+                <DriftMap series={series} activeLabel={activeMeta.label} origin={data.base} showRefs={!loc} />
               ) : (
                 <div className="map-loading">Carregando mapa…</div>
               )}
@@ -561,7 +604,7 @@ export default function Home() {
 
           <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
             {MODELS.map((m) => {
-              const info = driftEndInfo(byModel?.[m.id]);
+              const info = data ? driftEndInfo(byModel?.[m.id], data.base) : null;
               const isActive = model === m.id;
               return (
                 <button
@@ -647,7 +690,7 @@ export default function Home() {
                         {m.label}
                       </span>
                       <span className="placar-num" style={{ width: "auto", flex: 1, textAlign: "right" }}>
-                        {s ? `direção ±${s.dirErr}° · vento ${s.speedBias > 0 ? "+" : ""}${s.speedBias} kt` : "—"}
+                        {s ? `direção ±${s.dirErr}° · vento ${s.speedBias > 0 ? "+" : ""}${ktToKmh(s.speedBias).toFixed(0)} km/h` : "—"}
                       </span>
                     </div>
                   );
@@ -752,15 +795,17 @@ export default function Home() {
         </div>
       </section>
 
-      {mapFull && series.length > 0 && (
+      {mapFull && series.length > 0 && data && (
         <div className="map-full" ref={fullRef}>
-          <DriftMap series={series} activeLabel={activeMeta.label} fullscreen />
+          <DriftMap series={series} activeLabel={activeMeta.label} fullscreen origin={data.base} showRefs={!loc} />
           <button className="map-full-close" onClick={closeFull}>
             ✕ Fechar
           </button>
           <div className="map-full-hint">Arraste para mover · dois dedos para girar e ampliar</div>
         </div>
       )}
+
+      {pickerOpen && <LocationPicker onSelect={selectLoc} onClose={() => setPickerOpen(false)} />}
 
       <footer className="footer">
         <div className="wrap footer-inner">
@@ -829,7 +874,7 @@ function LayerRow({
         <div className="layer-bar">
           <i style={{ width: `${pct}%`, background: speedColor(kt) }} />
         </div>
-        <div className="layer-kt">{kt.toFixed(1)} kt</div>
+        <div className="layer-kt">{ktToKmh(kt).toFixed(0)} km/h</div>
       </div>
       <div className="layer-dir">
         de {from}° → {to}° {cardinal(to)}

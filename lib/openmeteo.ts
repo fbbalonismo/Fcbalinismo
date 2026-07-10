@@ -11,6 +11,14 @@ export interface HourForecast {
   drift: DriftPoint[];
 }
 
+// Local de decolagem (padrão: base Voe Pedra Azul)
+export interface Loc {
+  lat: number;
+  lon: number;
+  name?: string;
+  elevation?: number; // se omitido, a API usa a elevação do terreno (DEM)
+}
+
 export interface ForecastResponse {
   elevation: number;
   updatedAt: string;
@@ -22,15 +30,14 @@ export interface ForecastResponse {
 
 type Hourly = Record<string, (number | null)[] | string[]>;
 
-function buildUrl(): string {
+function buildUrl(loc: Loc): string {
   const vars: string[] = ["wind_speed_10m", "wind_direction_10m", "wind_gusts_10m", "temperature_2m", "precipitation"];
   for (const p of PRESSURE_LEVELS) {
     vars.push(`wind_speed_${p}hPa`, `wind_direction_${p}hPa`, `geopotential_height_${p}hPa`);
   }
   const params = new URLSearchParams({
-    latitude: String(BASE.lat),
-    longitude: String(BASE.lon),
-    elevation: String(BASE.elevation),
+    latitude: String(loc.lat),
+    longitude: String(loc.lon),
     hourly: vars.join(","),
     daily: "sunrise,sunset",
     models: MODELS.map((m) => m.id).join(","),
@@ -39,6 +46,7 @@ function buildUrl(): string {
     forecast_days: "4",
     past_days: "2", // permite analisar GPX enviado até 2 dias depois do voo
   });
+  if (loc.elevation != null) params.set("elevation", String(loc.elevation));
   return `https://api.open-meteo.com/v1/forecast?${params}`;
 }
 
@@ -48,8 +56,9 @@ function num(hourly: Hourly, key: string, i: number): number | null {
   return typeof v === "number" ? v : null;
 }
 
-export async function fetchForecast(): Promise<ForecastResponse> {
-  const res = await fetch(buildUrl(), { next: { revalidate: 1800 } });
+export async function fetchForecast(customLoc?: Loc): Promise<ForecastResponse> {
+  const loc: Loc = customLoc ?? { lat: BASE.lat, lon: BASE.lon, name: BASE.name, elevation: BASE.elevation };
+  const res = await fetch(buildUrl(loc), { next: { revalidate: 1800 } });
   if (!res.ok) throw new Error(`Open-Meteo respondeu ${res.status}`);
   const data = await res.json();
   const hourly: Hourly = data.hourly;
@@ -109,7 +118,7 @@ export async function fetchForecast(): Promise<ForecastResponse> {
             ? { kt: Math.round(sfcKt * 10) / 10, from: Math.round(sfcDir), to: Math.round((sfcDir + 180) % 360) }
             : null,
         layers,
-        drift: layers.length ? driftPath(layers) : [],
+        drift: layers.length ? driftPath(layers, loc) : [],
       };
     });
 
@@ -119,7 +128,7 @@ export async function fetchForecast(): Promise<ForecastResponse> {
   return {
     elevation,
     updatedAt: new Date().toISOString(),
-    base: { lat: BASE.lat, lon: BASE.lon, name: BASE.name },
+    base: { lat: loc.lat, lon: loc.lon, name: loc.name ?? "Local personalizado" },
     sunrise,
     sunset,
     models,

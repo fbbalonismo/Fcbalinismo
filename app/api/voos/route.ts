@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { list, put } from "@vercel/blob";
 import { fetchForecast } from "@/lib/openmeteo";
-import { analyzeFlight, type FlightAnalysis } from "@/lib/gpx";
+import { analyzeFlight, parseGpx, type FlightAnalysis } from "@/lib/gpx";
 
 // Upload público de GPX de voo: guarda o arquivo original no Blob e roda a
 // análise padronizada (bandas de 100 m × previsão dos 3 modelos), acumulando
@@ -27,10 +27,14 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "O arquivo não parece ser um GPX" }, { status: 400 });
     }
 
-    const forecast = await fetchForecast();
+    // Analisa no local real da decolagem (1º ponto do GPX) — funciona em
+    // qualquer lugar, não só na base de Pedra Azul
     let analysis: FlightAnalysis;
     try {
-      analysis = analyzeFlight(xml, file.name, forecast);
+      const pts = parseGpx(xml);
+      const origin = pts[0];
+      const forecast = await fetchForecast({ lat: origin.lat, lon: origin.lon, name: "Local do voo" });
+      analysis = analyzeFlight(pts, file.name, forecast, origin.ele);
     } catch (e) {
       return NextResponse.json(
         { error: e instanceof Error ? e.message : "Não consegui analisar este GPX" },

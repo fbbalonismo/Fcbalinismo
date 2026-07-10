@@ -1,5 +1,5 @@
 import { XMLParser } from "fast-xml-parser";
-import { BASE, MODELS } from "./config";
+import { MODELS } from "./config";
 import type { ForecastResponse } from "./openmeteo";
 
 // Análise pós-voo de um GPX (Wikiloc etc.) contra a previsão dos 3 modelos.
@@ -10,7 +10,7 @@ import type { ForecastResponse } from "./openmeteo";
 const DEG = Math.PI / 180;
 const KT = 0.514444;
 
-interface TrackPoint {
+export interface TrackPoint {
   lat: number;
   lon: number;
   ele: number;
@@ -33,6 +33,9 @@ export interface ModelScore {
 
 export interface FlightAnalysis {
   fileName: string;
+  lat?: number; // local de decolagem (1º ponto do GPX)
+  lon?: number;
+  baseElevM?: number;
   startLocal: string; // ISO local America/Sao_Paulo
   endLocal: string;
   forecastHour: string; // hora da previsão usada na comparação
@@ -80,9 +83,12 @@ export function parseGpx(xml: string): TrackPoint[] {
   return pts;
 }
 
-export function analyzeFlight(xml: string, fileName: string, forecast: ForecastResponse): FlightAnalysis {
-  const pts = parseGpx(xml);
-  const baseElev = BASE.elevation;
+export function analyzeFlight(
+  pts: TrackPoint[],
+  fileName: string,
+  forecast: ForecastResponse,
+  baseElev: number
+): FlightAnalysis {
 
   // Bandas de 100 m AGL: soma deslocamento vetorial e tempo
   const bands = new Map<number, { dx: number; dy: number; dt: number }>();
@@ -157,6 +163,9 @@ export function analyzeFlight(xml: string, fileName: string, forecast: ForecastR
 
   return {
     fileName,
+    lat: Math.round(pts[0].lat * 10000) / 10000,
+    lon: Math.round(pts[0].lon * 10000) / 10000,
+    baseElevM: Math.round(baseElev),
     startLocal,
     endLocal,
     forecastHour,

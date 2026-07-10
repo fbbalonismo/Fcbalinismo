@@ -1,4 +1,9 @@
-import { BASE, CLIMB_RATE_MS, LAYERS_M } from "./config";
+import { CLIMB_RATE_MS, LAYERS_M } from "./config";
+
+// Conversão para exibição: internamente tudo é calculado em nós (kt)
+export function ktToKmh(kt: number): number {
+  return Math.round(kt * 1.852 * 10) / 10;
+}
 
 export interface LevelPoint {
   heightAgl: number; // m acima do solo
@@ -77,15 +82,15 @@ export function interpolateLayers(profile: LevelPoint[]): LayerWind[] {
 
 /**
  * Trajetória de deriva prevista: o balão sobe a CLIMB_RATE_MS constante
- * e é levado pelo vento de cada camada. Retorna a polyline a partir da base.
+ * e é levado pelo vento de cada camada. Retorna a polyline a partir da origem.
  */
-export function driftPath(layers: LayerWind[]): DriftPoint[] {
+export function driftPath(layers: LayerWind[], origin: { lat: number; lon: number }): DriftPoint[] {
   const mPerDegLat = 111_320;
-  const mPerDegLon = 111_320 * Math.cos(BASE.lat * DEG);
+  const mPerDegLon = 111_320 * Math.cos(origin.lat * DEG);
   const KT_TO_MS = 0.514444;
 
-  let lat = BASE.lat;
-  let lon = BASE.lon;
+  let lat = origin.lat;
+  let lon = origin.lon;
   let prevTop = 0;
   const path: DriftPoint[] = [{ lat, lon, m: 0, to: layers[0]?.to ?? 0, kt: layers[0]?.kt ?? 0 }];
 
