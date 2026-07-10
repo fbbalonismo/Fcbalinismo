@@ -1,36 +1,36 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Voe Pedra Azul — Vento em Camadas 🎈
 
-## Getting Started
+App de previsão de vento em camadas para balonismo, em produção em **https://voe-pedra-azul.vercel.app**.
 
-First, run the development server:
+- Previsão de vento de 50 a 1800 m acima da base, em camadas de 100 m
+- Trajetória de deriva do balão em mapa de satélite (tela cheia, rotação por gestos)
+- Comparação dos modelos ECMWF, GFS e ICON (dados gratuitos Open-Meteo)
+- Nascer/pôr do sol, temperatura, rajada, gráfico de chuva e placar de realismo dos modelos
+- Upload público de GPX pós-voo com análise automática contra a previsão
+- Local de decolagem configurável (padrão: base Voe Pedra Azul, Domingos Martins/ES)
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
-```
+## Primeiros passos (novo colaborador)
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+1. Instale o [Claude Code](https://claude.com/claude-code), o [Node.js](https://nodejs.org) e o git.
+2. Clone e instale:
+   ```bash
+   git clone https://github.com/diegombraga/voe-pedra-azul.git
+   cd voe-pedra-azul
+   npm install
+   ```
+3. Abra o Claude Code na pasta (`claude`) e converse em português — toda a documentação técnica está em [`AGENTS.md`](AGENTS.md) e o Claude lê sozinho. O guia completo para quem não é programador está em [`ONBOARDING.md`](ONBOARDING.md).
+4. Rodar local: `npm run dev` → http://localhost:3000
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Publicar mudanças
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+Todo push na branch `main` publica automaticamente em produção (Vercel). Antes de dar push, peça ao Claude para rodar `npm run build` e verificar no preview.
 
-## Learn More
+## Fluxo pós-voo
 
-To learn more about Next.js, take a look at the following resources:
+Exporte o GPX do Wikiloc (trilha → ⋯ → Exportar arquivo → GPX) e envie **direto no site**, na seção "Envie o GPX do seu voo" — a análise contra a previsão é automática e entra no histórico. No Claude Code também dá: anexe o arquivo e peça "compare este voo com a previsão".
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## Regras do projeto
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+- Interface e respostas sempre em **português do Brasil**
+- O app deve continuar **gratuito e sem manutenção** (Open-Meteo sem chave, Vercel hobby)
+- Nunca remover o aviso *"Confirmar localmente antes da decolagem"* — a decisão de voo é sempre do piloto
