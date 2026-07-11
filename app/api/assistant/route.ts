@@ -8,6 +8,11 @@ import Anthropic from "@anthropic-ai/sdk";
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
 
+// O cliente consulta isto para só mostrar o assistente quando há chave configurada.
+export async function GET() {
+  return NextResponse.json({ configured: !!process.env.ANTHROPIC_API_KEY });
+}
+
 const MODEL = "claude-opus-4-8";
 
 const SYSTEM = `Você é o assistente do app "Voe Pedra Azul", uma ferramenta de previsão para voo de balão na base de Pedra Azul (Domingos Martins, ES).

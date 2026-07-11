@@ -16,6 +16,7 @@ interface PendingImage {
 }
 
 export default function Assistant({ context }: { context?: string }) {
+  const [available, setAvailable] = useState(false);
   const [open, setOpen] = useState(false);
   const [messages, setMessages] = useState<Msg[]>([]);
   const [input, setInput] = useState("");
@@ -24,6 +25,14 @@ export default function Assistant({ context }: { context?: string }) {
   const [error, setError] = useState<string | null>(null);
   const listRef = useRef<HTMLDivElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
+
+  // Só exibe o assistente quando o servidor tem ANTHROPIC_API_KEY configurada
+  useEffect(() => {
+    fetch("/api/assistant")
+      .then((r) => r.json())
+      .then((d) => setAvailable(!!d?.configured))
+      .catch(() => {});
+  }, []);
 
   useEffect(() => {
     listRef.current?.scrollTo({ top: listRef.current.scrollHeight, behavior: "smooth" });
@@ -70,6 +79,8 @@ export default function Assistant({ context }: { context?: string }) {
       setBusy(false);
     }
   }, [input, image, busy, messages, context]);
+
+  if (!available) return null;
 
   return (
     <>
