@@ -10,6 +10,7 @@ import type { DriftSeries } from "@/components/DriftMap";
 import type { FlightAnalysis } from "@/lib/gpx";
 import { RAIN_LABELS } from "@/lib/rain/scale";
 import type { RainAssessment } from "@/lib/rain/types";
+import Assistant from "@/components/Assistant";
 
 interface RainData {
   totalRegistros: number;
@@ -391,6 +392,24 @@ export default function Home() {
 
   const sunrise = data?.sunrise?.[dateISO];
   const sunset = data?.sunset?.[dateISO];
+
+  // Resumo das apurações atuais, passado ao assistente Claude como contexto
+  const assistantContext = useMemo(() => {
+    const parts: string[] = [];
+    parts.push(`Local: ${loc?.name ?? data?.base?.name ?? "Base Pedra Azul"}.`);
+    parts.push(`Hora selecionada no app: ${dateLabel} ${targetTime.slice(11)}h · modelo em destaque: ${model}.`);
+    if (data) {
+      parts.push(
+        `Previsão atualizada em ${new Date(data.updatedAt).toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo" })}. Modelos comparados: ECMWF, GFS, ICON.`
+      );
+    }
+    if (nowcast) {
+      const src = nowcast.sources.filter((s) => s.ok).map((s) => s.source).join(", ");
+      const eta = nowcast.approaching && nowcast.etaMin != null ? ` (chega em ~${nowcast.etaMin} min)` : "";
+      parts.push(`Nowcast de chuva agora: ${RAIN_LABELS[nowcast.status]}${eta}. Fontes ativas: ${src || "—"}.`);
+    }
+    return parts.join("\n");
+  }, [loc, data, dateLabel, targetTime, model, nowcast]);
 
   // Precipitação hora a hora do dia selecionado, por modelo
   const rainHours = useMemo(() => {
@@ -968,6 +987,8 @@ export default function Home() {
       )}
 
       {pickerOpen && <LocationPicker onSelect={selectLoc} onClose={() => setPickerOpen(false)} />}
+
+      <Assistant context={assistantContext} />
 
       <footer className="footer">
         <div className="wrap footer-inner">
