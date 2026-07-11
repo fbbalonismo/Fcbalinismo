@@ -2,12 +2,14 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import dynamic from "next/dynamic";
-import { HOURS, MODELS, type ModelId } from "@/lib/config";
+import { BASE, HOURS, MODELS, type ModelId } from "@/lib/config";
 import { cardinal, ktToKmh, type LayerWind } from "@/lib/wind";
 import type { PickedLoc } from "@/components/LocationPicker";
 import type { ForecastResponse, HourForecast } from "@/lib/openmeteo";
 import type { DriftSeries } from "@/components/DriftMap";
 import type { FlightAnalysis } from "@/lib/gpx";
+import { RAIN_LABELS } from "@/lib/rain/scale";
+import type { RainAssessment } from "@/lib/rain/types";
 
 interface RainData {
   totalRegistros: number;
@@ -18,12 +20,13 @@ interface FlightsData {
   totalVoos: number;
   media: Record<string, { dirErr: number; speedBias: number; voos: number }>;
 }
-const INTENSITIES = [
-  { id: "sem", label: "Sem chuva" },
-  { id: "leve", label: "Chuva leve" },
-  { id: "moderada", label: "Moderada" },
-  { id: "intensa", label: "Intensa" },
-] as const;
+// Escala observável no solo (card "Está chovendo agora?")
+const INTENSITIES = (["sem", "sereno", "leve", "moderada", "intensa"] as const).map((id) => ({
+  id,
+  label: RAIN_LABELS[id],
+}));
+// Escala do alerta (inclui "aproximação de nuvem")
+const CONFIRM_LEVELS = ["sem", "sereno", "aproximacao", "leve", "moderada", "intensa"] as const;
 
 const DriftMap = dynamic(() => import("@/components/DriftMap"), {
   ssr: false,
@@ -110,6 +113,14 @@ export default function Home() {
   const [loc, setLoc] = useState<PickedLoc | null>(null);
   const [pickerOpen, setPickerOpen] = useState(false);
 
+  // Alerta de chuva (nowcast na localização de abertura do app)
+  const [alertLoc, setAlertLoc] = useState<{ lat: number; lon: number; name?: string } | null>(null);
+  const [nowcast, setNowcast] = useState<RainAssessment | null>(null);
+  const [alertActive, setAlertActive] = useState(false);
+  const [notifPerm, setNotifPerm] = useState<NotificationPermission>("default");
+  const lastAlertKey = useRef<string>("");
+  const confirmRef = useRef<HTMLDivElement>(null);
+
   // Restaura o último local escolhido
   useEffect(() => {
     try {
@@ -144,19 +155,89 @@ export default function Home() {
     loadFlights();
   }, [loadRain, loadFlights]);
 
+  // Ao abrir o app: captura a localização do usuário (para o alerta de chuva)
+  useEffect(() => {
+    if (typeof window !== "undefined" && "Notification" in window) {
+      setNotifPerm(Notification.permission);
+    }
+    if (typeof navigator !== "undefined" && navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(
+        (p) => setAlertLoc({ lat: p.coords.latitude, lon: p.coords.longitude, name: "Sua localização" }),
+        () => setAlertLoc(null), // negado/indisponível → usa local escolhido ou a base
+        { timeout: 8000, maximumAge: 300000 }
+      );
+    }
+  }, []);
+
+  // Ponto monitorado: localização do usuário › local escolhido › base
+  const monitorLat = alertLoc?.lat ?? loc?.lat ?? BASE.lat;
+  const monitorLon = alertLoc?.lon ?? loc?.lon ?? BASE.lon;
+
+  // Nowcast: consulta agora e a cada 5 min
+  useEffect(() => {
+    let alive = true;
+    const check = async () => {
+      try {
+        const r = await fetch(`/api/nowcast?lat=${monitorLat}&lon=${monitorLon}`);
+        const j = await r.json();
+        if (alive && !j.error) setNowcast(j);
+      } catch {}
+    };
+    check();
+    const id = setInterval(check, 5 * 60 * 1000);
+    return () => {
+      alive = false;
+      clearInterval(id);
+    };
+  }, [monitorLat, monitorLon]);
+
+  // Dispara alerta (banner + notificação) quando chove ou nuvem se aproxima
+  useEffect(() => {
+    if (!nowcast) return;
+    if (!nowcast.raining && !nowcast.approaching) {
+      setAlertActive(false);
+      return;
+    }
+    // Chave estável por status+eta e janela de 10 min, para não repetir a notificação
+    const bucket = Math.round(new Date(nowcast.checkedAt).getTime() / (10 * 60 * 1000));
+    const key = `${nowcast.status}-${nowcast.etaMin ?? ""}-${bucket}`;
+    setAlertActive(true);
+    if (key !== lastAlertKey.current) {
+      lastAlertKey.current = key;
+      if (typeof window !== "undefined" && "Notification" in window && Notification.permission === "granted") {
+        const body = nowcast.approaching
+          ? `Nuvem de chuva chegando em ~${nowcast.etaMin} min na sua localização.`
+          : `Está chovendo (${RAIN_LABELS[nowcast.status]}) na sua localização.`;
+        try {
+          new Notification("🌧️ Alerta de chuva — Voe Pedra Azul", { body });
+        } catch {}
+      }
+    }
+  }, [nowcast]);
+
+  const enableNotifications = useCallback(async () => {
+    if (typeof window === "undefined" || !("Notification" in window)) return;
+    try {
+      const perm = await Notification.requestPermission();
+      setNotifPerm(perm);
+    } catch {}
+  }, []);
+
   const registerRain = useCallback(
-    async (intensity: string) => {
+    async (intensity: string, at?: { lat: number; lon: number }) => {
       setBusy(true);
       setRainMsg(null);
       try {
         const r = await fetch("/api/chuva", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ intensity }),
+          body: JSON.stringify({ intensity, ...(at ?? {}) }),
         });
         const j = await r.json();
         if (!r.ok) throw new Error(j.error);
-        setRainMsg(`✓ Registrado: ${INTENSITIES.find((i) => i.id === intensity)?.label} às ${j.record.time.slice(11)}`);
+        setRainMsg(
+          `✓ Registrado: ${RAIN_LABELS[intensity as keyof typeof RAIN_LABELS] ?? intensity} às ${j.record.time.slice(11)}`
+        );
         loadRain();
       } catch (e) {
         setRainMsg(`Erro ao registrar: ${e instanceof Error ? e.message : e}`);
@@ -165,6 +246,14 @@ export default function Home() {
       }
     },
     [loadRain]
+  );
+
+  const confirmAlert = useCallback(
+    (level: string) => {
+      registerRain(level, { lat: monitorLat, lon: monitorLon });
+      setAlertActive(false);
+    },
+    [registerRain, monitorLat, monitorLon]
   );
 
   const uploadGpx = useCallback(
@@ -312,6 +401,48 @@ export default function Home() {
           </a>
         </div>
       </header>
+
+      {alertActive && nowcast && (
+        <div className="rain-alert" role="alert">
+          <div className="wrap rain-alert-inner">
+            <div className="rain-alert-head">
+              <span className="rain-alert-icon">🌧️</span>
+              <div style={{ flex: 1 }}>
+                <strong>
+                  {nowcast.approaching
+                    ? `Nuvem de chuva chegando em ~${nowcast.etaMin} min`
+                    : `Está chovendo agora — ${RAIN_LABELS[nowcast.status]}`}
+                </strong>
+                <div className="rain-alert-sub">
+                  na {alertLoc?.name ?? "sua localização"} · fontes:{" "}
+                  {nowcast.sources
+                    .filter((s) => s.ok)
+                    .map((s) => s.source)
+                    .join(", ") || "—"}
+                </div>
+              </div>
+              <button className="rain-alert-x" onClick={() => setAlertActive(false)} aria-label="Fechar">
+                ×
+              </button>
+            </div>
+            <div className="rain-alert-confirm">
+              <span className="rain-alert-q">O que você vê aí?</span>
+              <div className="rain-alert-chips">
+                {CONFIRM_LEVELS.map((lv) => (
+                  <button key={lv} className="chip" disabled={busy} onClick={() => confirmAlert(lv)}>
+                    {RAIN_LABELS[lv]}
+                  </button>
+                ))}
+              </div>
+            </div>
+            {notifPerm !== "granted" && (
+              <button className="rain-alert-notif" onClick={enableNotifications}>
+                🔔 Ativar notificações no navegador
+              </button>
+            )}
+          </div>
+        </div>
+      )}
 
       <section id="topo" className="hero">
         <div className="hero-bg" />

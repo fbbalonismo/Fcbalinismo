@@ -1012,3 +1012,88 @@ a:hover {
     height: 360px;
   }
 }
+
+/* Banner de alerta de chuva (nowcast) */
+.rain-alert {
+  position: sticky;
+  top: 0;
+  z-index: 50;
+  background: linear-gradient(160deg, #123a5c, #0e2a45);
+  border-bottom: 1px solid var(--line-strong);
+  box-shadow: 0 6px 22px rgba(0, 0, 0, 0.35);
+  animation: rain-alert-in 0.35s ease;
+}
+@keyframes rain-alert-in {
+  from {
+    transform: translateY(-12px);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+.rain-alert-inner {
+  padding: 12px 20px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.rain-alert-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.rain-alert-icon {
+  font-size: 24px;
+  line-height: 1;
+}
+.rain-alert-head strong {
+  color: var(--text);
+  font-size: 15px;
+}
+.rain-alert-sub {
+  color: var(--text-soft);
+  font-size: 12.5px;
+  margin-top: 2px;
+}
+.rain-alert-x {
+  background: transparent;
+  border: none;
+  color: var(--muted);
+  font-size: 24px;
+  line-height: 1;
+  cursor: pointer;
+  padding: 0 4px;
+}
+.rain-alert-x:hover {
+  color: var(--text);
+}
+.rain-alert-confirm {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}
+.rain-alert-q {
+  color: var(--muted);
+  font-size: 13px;
+}
+.rain-alert-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.rain-alert-notif {
+  align-self: flex-start;
+  background: rgba(245, 166, 35, 0.14);
+  border: 1px solid var(--accent);
+  color: var(--accent);
+  border-radius: 999px;
+  padding: 6px 14px;
+  font-size: 13px;
+  cursor: pointer;
+}
+.rain-alert-notif:hover {
+  background: rgba(245, 166, 35, 0.22);
+}

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { fetchForecast } from "@/lib/openmeteo";
 import { MODELS } from "@/lib/config";
 import { saveText, listJson } from "@/lib/store";
+import { RAIN_RANGES, type RainStatus } from "@/lib/rain/scale";
 
 // Registro de chuva observada na base + placar de realismo dos modelos.
 // Cada registro guarda um snapshot do que os 3 modelos previam para aquela
@@ -9,20 +10,18 @@ import { saveText, listJson } from "@/lib/store";
 
 export const dynamic = "force-dynamic";
 
-export type Intensity = "sem" | "leve" | "moderada" | "intensa";
-
-// Faixas de precipitação horária (mm/h) correspondentes a cada intensidade
-const RANGES: Record<Intensity, [number, number]> = {
-  sem: [0, 0.2],
-  leve: [0.2, 2.5],
-  moderada: [2.5, 10],
-  intensa: [10, Infinity],
-};
+// "aproximacao" é um registro de alerta (nuvem chegando), não uma medida de mm
+// no solo — é aceito e guardado, mas não entra na pontuação do placar.
+function isValidStatus(s: unknown): s is RainStatus {
+  return s === "aproximacao" || (typeof s === "string" && s in RAIN_RANGES);
+}
 
 interface RainRecord {
   time: string; // hora local registrada
-  intensity: Intensity;
+  intensity: RainStatus;
   predicted: Record<string, number | null>; // label do modelo -> mm/h previsto
+  lat?: number;
+  lon?: number;
 }
 
 function nowLocalHour(): string {
@@ -33,20 +32,25 @@ function nowLocalHour(): string {
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-    const intensity = body?.intensity as Intensity;
-    if (!RANGES[intensity]) {
+    const intensity = body?.intensity;
+    if (!isValidStatus(intensity)) {
       return NextResponse.json({ error: "Intensidade inválida" }, { status: 400 });
     }
+    const lat = typeof body?.lat === "number" ? body.lat : undefined;
+    const lon = typeof body?.lon === "number" ? body.lon : undefined;
 
     const time = nowLocalHour();
-    const forecast = await fetchForecast();
+    // Snapshot da previsão dos modelos — na localização informada (ou na base).
+    const forecast = await fetchForecast(
+      lat != null && lon != null ? { lat, lon, name: "Local do alerta" } : undefined
+    );
     const predicted: Record<string, number | null> = {};
     for (const m of MODELS) {
       const hour = forecast.models[m.id]?.hours.find((h) => h.time === time);
       predicted[m.label] = hour?.precipMm ?? null;
     }
 
-    const record: RainRecord = { time, intensity, predicted };
+    const record: RainRecord = { time, intensity, predicted, lat, lon };
     await saveText(
       `chuva/${time.replace(":", "h")}.json`,
       JSON.stringify(record),
@@ -71,7 +75,9 @@ export async function GET() {
     const placar: Record<string, { acertos: number; total: number }> = {};
     for (const m of MODELS) placar[m.label] = { acertos: 0, total: 0 };
     for (const r of records) {
-      const [lo, hi] = RANGES[r.intensity] ?? [0, 0];
+      const range = RAIN_RANGES[r.intensity as keyof typeof RAIN_RANGES];
+      if (!range) continue; // pula "aproximacao" (não é medida de mm no solo)
+      const [lo, hi] = range;
       for (const m of MODELS) {
         const mm = r.predicted?.[m.label];
         if (mm === null || mm === undefined) continue;
