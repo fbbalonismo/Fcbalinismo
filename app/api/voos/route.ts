@@ -2,11 +2,13 @@ import { NextRequest, NextResponse } from "next/server";
 import { fetchForecast } from "@/lib/openmeteo";
 import { analyzeFlight, parseGpx, type FlightAnalysis, type TrackPoint } from "@/lib/gpx";
 import { parseKml } from "@/lib/kml";
+import { parseIgc } from "@/lib/igc";
 import { saveText, listJson } from "@/lib/store";
 
-// Upload público de trilha de voo (GPX do Wikiloc ou KML do HotAir): guarda o
-// arquivo original e roda a análise padronizada (bandas de 100 m × previsão dos
-// 3 modelos), acumulando o histórico de validação automaticamente.
+// Upload público de trilha de voo (GPX do Wikiloc, KML do HotAir ou IGC do
+// Kubicek Flymate): guarda o arquivo original e roda a análise padronizada
+// (bandas de 100 m × previsão dos 3 modelos), acumulando o histórico
+// de validação automaticamente.
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
@@ -23,23 +25,30 @@ export async function POST(req: NextRequest) {
     if (file.size > MAX_BYTES) {
       return NextResponse.json({ error: "Arquivo muito grande (máx. 15 MB)" }, { status: 400 });
     }
-    const xml = await file.text();
-    const isKml = /<kml[\s>]/i.test(xml) || file.name.toLowerCase().endsWith(".kml");
-    const isGpx = xml.includes("<gpx");
-    if (!isGpx && !isKml) {
+    const text = await file.text();
+    const name = file.name.toLowerCase();
+    const isKml = /<kml[\s>]/i.test(text) || name.endsWith(".kml");
+    const isGpx = text.includes("<gpx");
+    // IGC: extensão .igc ou registros B (padrão FAI) num arquivo texto sem XML
+    const isIgc = !isKml && !isGpx && (name.endsWith(".igc") || /^B\d{6}/m.test(text));
+    if (!isGpx && !isKml && !isIgc) {
       return NextResponse.json(
-        { error: "O arquivo não parece ser um GPX (Wikiloc) nem um KML (HotAir)" },
+        { error: "Formato não reconhecido — envie GPX (Wikiloc), KML (HotAir) ou IGC (Kubicek Flymate)" },
         { status: 400 }
       );
     }
-    const ext = isKml ? "kml" : "gpx";
-    const contentType = isKml ? "application/vnd.google-earth.kml+xml" : "application/gpx+xml";
+    const ext = isKml ? "kml" : isIgc ? "igc" : "gpx";
+    const contentType = isKml
+      ? "application/vnd.google-earth.kml+xml"
+      : isIgc
+        ? "application/octet-stream"
+        : "application/gpx+xml";
 
     // Analisa no local real da decolagem (1º ponto da trilha) — funciona em
     // qualquer lugar, não só na base de Pedra Azul
     let analysis: FlightAnalysis;
     try {
-      const pts: TrackPoint[] = isKml ? parseKml(xml) : parseGpx(xml);
+      const pts: TrackPoint[] = isKml ? parseKml(text) : isIgc ? parseIgc(text) : parseGpx(text);
       const origin = pts[0];
       const forecast = await fetchForecast({ lat: origin.lat, lon: origin.lon, name: "Local do voo" });
       analysis = analyzeFlight(pts, file.name, forecast, origin.ele);
@@ -53,7 +62,7 @@ export async function POST(req: NextRequest) {
     const noModels = Object.keys(analysis.models).length === 0;
     const stamp = analysis.startLocal.replace(/:/g, "h");
 
-    await saveText(`voos/${stamp}.${ext}`, xml, contentType);
+    await saveText(`voos/${stamp}.${ext}`, text, contentType);
     await saveText(`voos/${stamp}.json`, JSON.stringify(analysis), "application/json");
 
     return NextResponse.json({

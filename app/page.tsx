@@ -661,15 +661,15 @@ export default function Home() {
           <div className="card">
             <div className="card-label">Enviar arquivo do voo</div>
             <p className="obs-help">
-              Envie a trilha do voo em <b>GPX</b> (Wikiloc: trilha → menu ⋯ → Exportar arquivo → GPX) ou em <b>KML</b>{" "}
-              (HotAir: exportar a trilha do voo). Envie até 2 dias depois do voo — a ferramenta compara o traçado real
-              com a previsão dos 3 modelos, faixa por faixa de altitude, e guarda tudo no histórico.
+              Envie a trilha do voo em <b>GPX</b> (Wikiloc), <b>KML</b> (HotAir) ou <b>IGC</b> (Kubicek Flymate). Envie
+              até 2 dias depois do voo — a ferramenta compara o traçado real com a previsão dos 3 modelos, faixa por
+              faixa de altitude, e guarda tudo no histórico.
             </p>
             <label className={busy ? "upload-btn disabled" : "upload-btn"}>
-              📂 Escolher arquivo .gpx ou .kml
+              📂 Escolher arquivo .gpx, .kml ou .igc
               <input
                 type="file"
-                accept=".gpx,.kml,application/gpx+xml,application/vnd.google-earth.kml+xml"
+                accept=".gpx,.kml,.igc,application/gpx+xml,application/vnd.google-earth.kml+xml"
                 style={{ display: "none" }}
                 disabled={busy}
                 onChange={(e) => {
