@@ -1,4 +1,4 @@
-import { list, put } from "@vercel/blob";
+import { del, list, put } from "@vercel/blob";
 import { promises as fs } from "fs";
 import path from "path";
 
@@ -79,4 +79,17 @@ export async function listJson<T>(prefix: string): Promise<T[]> {
       })
   )) as (T | null)[];
   return items.filter((x): x is T => x !== null);
+}
+
+// Remove um objeto (ex.: assinatura de push expirada). Best-effort.
+export async function deleteObject(pathname: string): Promise<void> {
+  if (useBlob) {
+    try {
+      await del(pathname);
+    } catch {}
+    return;
+  }
+  try {
+    await fs.unlink(path.join(DATA_DIR, pathname));
+  } catch {}
 }

@@ -42,6 +42,16 @@ const DAY_LABELS = ["Hoje", "Amanhã", "Dep. amanhã"];
 const WHATSAPP = "https://wa.me/5527998373174";
 const LOGO = "https://voepedraazul.com.br/wp-content/uploads/2025/10/Logo-voe-pa-2.png";
 
+// Converte a chave pública VAPID (base64url) para o formato que o PushManager espera
+function urlBase64ToUint8Array(base64String: string): Uint8Array<ArrayBuffer> {
+  const padding = "=".repeat((4 - (base64String.length % 4)) % 4);
+  const base64 = (base64String + padding).replace(/-/g, "+").replace(/_/g, "/");
+  const raw = atob(base64);
+  const arr = new Uint8Array(new ArrayBuffer(raw.length));
+  for (let i = 0; i < raw.length; i++) arr[i] = raw.charCodeAt(i);
+  return arr;
+}
+
 function dateForDay(offset: number): string {
   const now = new Date(new Date().toLocaleString("en-US", { timeZone: "America/Sao_Paulo" }));
   now.setDate(now.getDate() + offset);
@@ -220,8 +230,23 @@ export default function Home() {
     try {
       const perm = await Notification.requestPermission();
       setNotifPerm(perm);
+      if (perm !== "granted") return;
+      // Assina Web Push para receber alertas com o app fechado
+      const vapid = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY;
+      if (!vapid || !("serviceWorker" in navigator) || !("PushManager" in window)) return;
+      const reg = await navigator.serviceWorker.register("/sw.js");
+      await navigator.serviceWorker.ready;
+      const sub = await reg.pushManager.subscribe({
+        userVisibleOnly: true,
+        applicationServerKey: urlBase64ToUint8Array(vapid),
+      });
+      await fetch("/api/push/subscribe", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ subscription: sub, lat: monitorLat, lon: monitorLon }),
+      });
     } catch {}
-  }, []);
+  }, [monitorLat, monitorLon]);
 
   const registerRain = useCallback(
     async (intensity: string, at?: { lat: number; lon: number }) => {
