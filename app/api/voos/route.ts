@@ -3,9 +3,10 @@ import { fetchForecast } from "@/lib/openmeteo";
 import { analyzeFlight, parseGpx, type FlightAnalysis, type TrackPoint } from "@/lib/gpx";
 import { parseKml } from "@/lib/kml";
 import { parseIgc } from "@/lib/igc";
+import { extractKmlFromKmz } from "@/lib/kmz";
 import { saveText, listJson } from "@/lib/store";
 
-// Upload público de trilha de voo (GPX do Wikiloc, KML do HotAir ou IGC do
+// Upload público de trilha de voo (GPX do Wikiloc, KML/KMZ do HotAir ou IGC do
 // Kubicek Flymate): guarda o arquivo original e roda a análise padronizada
 // (bandas de 100 m × previsão dos 3 modelos), acumulando o histórico
 // de validação automaticamente.
@@ -25,15 +26,27 @@ export async function POST(req: NextRequest) {
     if (file.size > MAX_BYTES) {
       return NextResponse.json({ error: "Arquivo muito grande (máx. 15 MB)" }, { status: 400 });
     }
-    const text = await file.text();
     const name = file.name.toLowerCase();
-    const isKml = /<kml[\s>]/i.test(text) || name.endsWith(".kml");
+    const buf = Buffer.from(await file.arrayBuffer());
+    // KMZ é um ZIP (assinatura "PK\x03\x04") — extrai o KML interno.
+    const isZip = buf.length > 4 && buf[0] === 0x50 && buf[1] === 0x4b && buf[2] === 0x03 && buf[3] === 0x04;
+    let text: string;
+    try {
+      text = name.endsWith(".kmz") || isZip ? extractKmlFromKmz(buf) : buf.toString("utf8");
+    } catch (e) {
+      return NextResponse.json(
+        { error: e instanceof Error ? e.message : "Não consegui abrir o arquivo" },
+        { status: 400 }
+      );
+    }
+
+    const isKml = /<kml[\s>]/i.test(text) || name.endsWith(".kml") || name.endsWith(".kmz") || isZip;
     const isGpx = text.includes("<gpx");
     // IGC: extensão .igc ou registros B (padrão FAI) num arquivo texto sem XML
     const isIgc = !isKml && !isGpx && (name.endsWith(".igc") || /^B\d{6}/m.test(text));
     if (!isGpx && !isKml && !isIgc) {
       return NextResponse.json(
-        { error: "Formato não reconhecido — envie GPX (Wikiloc), KML (HotAir) ou IGC (Kubicek Flymate)" },
+        { error: "Formato não reconhecido — envie GPX (Wikiloc), KML/KMZ (HotAir) ou IGC (Kubicek Flymate)" },
         { status: 400 }
       );
     }

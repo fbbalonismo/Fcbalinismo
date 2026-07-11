@@ -66,6 +66,8 @@ export function parseGpx(xml: string): TrackPoint[] {
 
   const tracks = Array.isArray(gpx.trk) ? gpx.trk : gpx.trk ? [gpx.trk] : [];
   const pts: TrackPoint[] = [];
+  let withCoords = 0; // pontos com lat/lon/ele válidos (com ou sem tempo)
+  let withTime = 0; // desses, quantos têm timestamp
   for (const trk of tracks) {
     const segs = Array.isArray(trk.trkseg) ? trk.trkseg : trk.trkseg ? [trk.trkseg] : [];
     for (const seg of segs) {
@@ -75,11 +77,23 @@ export function parseGpx(xml: string): TrackPoint[] {
         const lon = parseFloat(p["@_lon"]);
         const ele = parseFloat(p.ele);
         const time = p.time ? Date.parse(p.time) / 1000 : NaN;
-        if ([lat, lon, ele, time].every(Number.isFinite)) pts.push({ lat, lon, ele, t: time });
+        if (![lat, lon, ele].every(Number.isFinite)) continue;
+        withCoords++;
+        if (!Number.isFinite(time)) continue;
+        withTime++;
+        pts.push({ lat, lon, ele, t: time });
       }
     }
   }
-  if (pts.length < 30) throw new Error(`GPX com poucos pontos de trilha (${pts.length}) — exporte a trilha completa`);
+  if (pts.length < 30) {
+    // Diferencia "trilha sem horário" de "trilha curta" para um aviso útil
+    if (withCoords >= 30 && withTime < withCoords / 2) {
+      throw new Error(
+        "Trilha sem horário: os pontos não têm timestamp (<time>). A análise precisa do tempo de cada ponto — exporte a trilha incluindo os horários."
+      );
+    }
+    throw new Error(`GPX com poucos pontos de trilha (${pts.length}) — exporte a trilha completa`);
+  }
   return pts;
 }
 
