@@ -79,10 +79,11 @@ export function parseKml(xml: string): TrackPoint[] {
   for (const trk of tracks) {
     const n = Math.min(trk.when.length, trk.coord.length);
     for (let i = 0; i < n; i++) {
-      // gx:coord é "longitude latitude altitude"
-      const [lon, lat, ele] = trk.coord[i].trim().split(/\s+/).map(Number);
+      // gx:coord é "longitude latitude altitude" (altitude pode faltar em 2D)
+      const [lon, lat, eleRaw] = trk.coord[i].trim().split(/\s+/).map(Number);
+      const ele = Number.isFinite(eleRaw) ? eleRaw : 0;
       const t = Date.parse(trk.when[i]) / 1000;
-      if ([lat, lon, ele, t].every(Number.isFinite)) pts.push({ lat, lon, ele, t });
+      if ([lat, lon, t].every(Number.isFinite)) pts.push({ lat, lon, ele, t });
     }
   }
 
@@ -98,9 +99,10 @@ export function parseKml(xml: string): TrackPoint[] {
       if (!Number.isFinite(t0) || !Number.isFinite(t1)) continue;
       const step = (t1 - t0) / (tuples.length - 1);
       tuples.forEach((tuple, i) => {
-        const [lon, lat, ele] = tuple.split(",").map(Number);
+        const [lon, lat, eleRaw] = tuple.split(",").map(Number);
+        const ele = Number.isFinite(eleRaw) ? eleRaw : 0;
         const t = t0 + step * i;
-        if ([lat, lon, ele, t].every(Number.isFinite)) pts.push({ lat, lon, ele, t });
+        if ([lat, lon, t].every(Number.isFinite)) pts.push({ lat, lon, ele, t });
       });
     }
   }

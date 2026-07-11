@@ -21,7 +21,7 @@ export async function POST(req: NextRequest) {
     const form = await req.formData();
     const file = form.get("file");
     if (!(file instanceof File)) {
-      return NextResponse.json({ error: "Envie um arquivo .gpx" }, { status: 400 });
+      return NextResponse.json({ error: "Envie um arquivo .gpx, .kml, .kmz ou .igc" }, { status: 400 });
     }
     if (file.size > MAX_BYTES) {
       return NextResponse.json({ error: "Arquivo muito grande (máx. 15 MB)" }, { status: 400 });
@@ -82,7 +82,7 @@ export async function POST(req: NextRequest) {
       ok: true,
       analysis,
       aviso: noModels
-        ? "GPX salvo, mas a previsão desta data já saiu do alcance da comparação (envie até 2 dias após o voo para ter a análise completa)."
+        ? "Voo salvo, mas a previsão desta data já saiu do alcance da comparação (envie até 2 dias após o voo para ter a análise completa)."
         : null,
     });
   } catch (e) {

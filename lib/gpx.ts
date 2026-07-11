@@ -94,7 +94,23 @@ export function parseGpx(xml: string): TrackPoint[] {
     }
     throw new Error(`GPX com poucos pontos de trilha (${pts.length}) — exporte a trilha completa`);
   }
+  pts.sort((a, b) => a.t - b.t); // garante ordem cronológica (analyzeFlight assume isso)
   return pts;
+}
+
+// Limite de dt entre pontos: descarta gaps reais (balão parado / perda de sinal)
+// sem rejeitar trilhas amostradas em intervalos maiores (loggers a 60–120 s).
+// Adapta-se à cadência da trilha: 3× o intervalo mediano, entre 60 s e 10 min.
+function maxSegmentSeconds(pts: TrackPoint[]): number {
+  const deltas: number[] = [];
+  for (let i = 1; i < pts.length; i++) {
+    const d = pts[i].t - pts[i - 1].t;
+    if (d > 0) deltas.push(d);
+  }
+  if (!deltas.length) return 60;
+  deltas.sort((a, b) => a - b);
+  const median = deltas[Math.floor(deltas.length / 2)];
+  return Math.min(600, Math.max(60, median * 3));
 }
 
 export function analyzeFlight(
@@ -105,6 +121,7 @@ export function analyzeFlight(
 ): FlightAnalysis {
 
   // Bandas de 100 m AGL: soma deslocamento vetorial e tempo
+  const maxDt = maxSegmentSeconds(pts);
   const bands = new Map<number, { dx: number; dy: number; dt: number }>();
   let maxAgl = 0;
   let distM = 0;
@@ -112,7 +129,7 @@ export function analyzeFlight(
     const a = pts[i - 1];
     const b = pts[i];
     const dt = b.t - a.t;
-    if (dt <= 0 || dt > 60) continue;
+    if (dt <= 0 || dt > maxDt) continue;
     const agl = (a.ele + b.ele) / 2 - baseElev;
     maxAgl = Math.max(maxAgl, b.ele - baseElev);
     const dy = (b.lat - a.lat) * 111_320;

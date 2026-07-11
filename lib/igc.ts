@@ -30,12 +30,23 @@ export function parseIgc(text: string): TrackPoint[] {
   }
   const dayEpoch = Date.UTC(date.y, date.m - 1, date.d, 0, 0, 0) / 1000;
 
-  const pts: TrackPoint[] = [];
+  // 1ª passada: lê os registros B guardando as DUAS altitudes (GNSS e
+  // barométrica) separadamente. 0 é o valor-sentinela de "não gravado" no IGC.
+  interface Raw {
+    lat: number;
+    lon: number;
+    t: number;
+    gnss: number | null;
+    press: number | null;
+  }
+  const raw: Raw[] = [];
   let prevSecs = -1;
   let dayOffset = 0;
 
   for (const l of lines) {
-    if (l[0] !== "B" || l.length < 35) continue;
+    // Coordenadas + altitude barométrica ocupam até a coluna 30; a GNSS (30–35)
+    // é opcional em alguns gravadores, então basta length >= 30.
+    if (l[0] !== "B" || l.length < 30) continue;
 
     const hh = +l.slice(1, 3);
     const mm = +l.slice(3, 5);
@@ -48,16 +59,15 @@ export function parseIgc(text: string): TrackPoint[] {
     const lonMin = +l.slice(18, 20) + +l.slice(20, 23) / 1000;
     const lonHem = l[23];
 
-    const pressAlt = +l.slice(25, 30);
-    const gnssAlt = +l.slice(30, 35);
+    const pressRaw = +l.slice(25, 30);
+    const gnssRaw = l.length >= 35 ? +l.slice(30, 35) : NaN;
+    const press = Number.isFinite(pressRaw) && pressRaw !== 0 ? pressRaw : null;
+    const gnss = Number.isFinite(gnssRaw) && gnssRaw !== 0 ? gnssRaw : null;
 
     let lat = latDeg + latMin / 60;
     if (latHem === "S") lat = -lat;
     let lon = lonDeg + lonMin / 60;
     if (lonHem === "W") lon = -lon;
-
-    // Prefere altitude GNSS; cai para barométrica se a GNSS vier zerada/inválida
-    const ele = Number.isFinite(gnssAlt) && gnssAlt !== 0 ? gnssAlt : pressAlt;
 
     // Tempo absoluto (trata virada de meia-noite, embora raro em balão)
     const secs = hh * 3600 + mm * 60 + ss;
@@ -65,8 +75,21 @@ export function parseIgc(text: string): TrackPoint[] {
     prevSecs = secs;
     const t = dayEpoch + secs + dayOffset * 86400;
 
-    if ([lat, lon, ele, t].every(Number.isFinite)) pts.push({ lat, lon, ele, t });
+    if ([lat, lon, t].every(Number.isFinite)) raw.push({ lat, lon, t, gnss, press });
   }
+
+  // Escolhe UMA fonte de altitude para todo o voo (não mistura datums GPS e
+  // barométrico). Prefere GNSS — o procedimento define AGL pela elevação GPS;
+  // só usa barométrica se a maioria dos pontos não tiver GNSS.
+  const gnssCount = raw.filter((r) => r.gnss != null).length;
+  const useGnss = gnssCount >= raw.length / 2;
+
+  const pts: TrackPoint[] = [];
+  for (const r of raw) {
+    const ele = useGnss ? r.gnss : r.press;
+    if (ele != null) pts.push({ lat: r.lat, lon: r.lon, ele, t: r.t });
+  }
+  pts.sort((a, b) => a.t - b.t); // garante ordem cronológica
 
   if (pts.length < 30) {
     throw new Error(`IGC com poucos pontos de trilha (${pts.length}) — exporte o voo completo`);

@@ -10,10 +10,6 @@ import path from "path";
 const useBlob = !!process.env.BLOB_READ_WRITE_TOKEN;
 const DATA_DIR = path.join(process.cwd(), ".data");
 
-export function usingLocalStore(): boolean {
-  return !useBlob;
-}
-
 // Salva um texto (JSON, GPX, etc.) no caminho lógico informado (ex.: "voos/x.json").
 export async function saveText(
   pathname: string,
@@ -30,8 +26,20 @@ export async function saveText(
     return;
   }
   const full = path.join(DATA_DIR, pathname);
-  await fs.mkdir(path.dirname(full), { recursive: true });
-  await fs.writeFile(full, text, "utf8");
+  try {
+    await fs.mkdir(path.dirname(full), { recursive: true });
+    await fs.writeFile(full, text, "utf8");
+  } catch (e) {
+    // Em produção serverless (FS read-only) sem token, a gravação local falha —
+    // dá um erro claro apontando a configuração, em vez de um EROFS cru.
+    const code = (e as { code?: string })?.code;
+    if (code === "EROFS" || code === "EACCES") {
+      throw new Error(
+        "Armazenamento indisponível: defina BLOB_READ_WRITE_TOKEN para gravar em produção (o modo local só funciona em dev)."
+      );
+    }
+    throw e;
+  }
 }
 
 // Lê e faz parse de todos os .json sob um prefixo (ex.: "voos/", "chuva/").

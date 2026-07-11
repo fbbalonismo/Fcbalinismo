@@ -8,9 +8,12 @@ const SIG_CEN = 0x02014b50; // Central Directory header
 const SIG_LOC = 0x04034b50; // Local file header
 
 export function extractKmlFromKmz(buf: Buffer): string {
-  // Localiza o EOCD varrendo do fim (após o comentário opcional).
+  // Localiza o EOCD varrendo do fim. O comentário do ZIP tem no máx. 65535
+  // bytes, então o EOCD está nos últimos ~64 KB — limita a busca a essa janela
+  // (evita varrer o arquivo inteiro e casar assinaturas falsas nos dados).
   let eocd = -1;
-  for (let i = buf.length - 22; i >= 0; i--) {
+  const minI = Math.max(0, buf.length - 22 - 0xffff);
+  for (let i = buf.length - 22; i >= minI; i--) {
     if (buf.readUInt32LE(i) === SIG_EOCD) {
       eocd = i;
       break;
