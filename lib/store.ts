@@ -38,17 +38,17 @@ export async function saveText(
 export async function listJson<T>(prefix: string): Promise<T[]> {
   if (useBlob) {
     const { blobs } = await list({ prefix, limit: 1000 });
-    const items = await Promise.all(
+    const items = (await Promise.all(
       blobs
         .filter((b) => b.pathname.endsWith(".json"))
-        .map(async (b) => {
+        .map(async (b): Promise<T | null> => {
           try {
             return (await (await fetch(b.url)).json()) as T;
           } catch {
             return null;
           }
         })
-    );
+    )) as (T | null)[];
     return items.filter((x): x is T => x !== null);
   }
 
@@ -59,16 +59,16 @@ export async function listJson<T>(prefix: string): Promise<T[]> {
   } catch {
     return []; // pasta ainda não existe = nenhum registro
   }
-  const items = await Promise.all(
+  const items = (await Promise.all(
     names
       .filter((n) => n.endsWith(".json"))
-      .map(async (n) => {
+      .map(async (n): Promise<T | null> => {
         try {
           return JSON.parse(await fs.readFile(path.join(dir, n), "utf8")) as T;
         } catch {
           return null;
         }
       })
-  );
+  )) as (T | null)[];
   return items.filter((x): x is T => x !== null);
 }
