@@ -414,9 +414,9 @@ export default function Home() {
                     : `Está chovendo agora — ${RAIN_LABELS[nowcast.status]}`}
                 </strong>
                 <div className="rain-alert-sub">
-                  na {alertLoc?.name ?? "sua localização"} · fontes:{" "}
+                  na {alertLoc?.name ?? "sua localização"} · detectado por:{" "}
                   {nowcast.sources
-                    .filter((s) => s.ok)
+                    .filter((s) => s.ok && (nowcast.raining ? s.rainingNow : s.etaMin != null))
                     .map((s) => s.source)
                     .join(", ") || "—"}
                 </div>
