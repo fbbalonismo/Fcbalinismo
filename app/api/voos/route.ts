@@ -1,11 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
-import { list, put } from "@vercel/blob";
 import { fetchForecast } from "@/lib/openmeteo";
-import { analyzeFlight, parseGpx, type FlightAnalysis } from "@/lib/gpx";
+import { analyzeFlight, parseGpx, type FlightAnalysis, type TrackPoint } from "@/lib/gpx";
+import { parseKml } from "@/lib/kml";
+import { saveText, listJson } from "@/lib/store";
 
-// Upload público de GPX de voo: guarda o arquivo original no Blob e roda a
-// análise padronizada (bandas de 100 m × previsão dos 3 modelos), acumulando
-// o histórico de validação automaticamente.
+// Upload público de trilha de voo (GPX do Wikiloc ou KML do HotAir): guarda o
+// arquivo original e roda a análise padronizada (bandas de 100 m × previsão dos
+// 3 modelos), acumulando o histórico de validação automaticamente.
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
@@ -23,21 +24,28 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Arquivo muito grande (máx. 15 MB)" }, { status: 400 });
     }
     const xml = await file.text();
-    if (!xml.includes("<gpx")) {
-      return NextResponse.json({ error: "O arquivo não parece ser um GPX" }, { status: 400 });
+    const isKml = /<kml[\s>]/i.test(xml) || file.name.toLowerCase().endsWith(".kml");
+    const isGpx = xml.includes("<gpx");
+    if (!isGpx && !isKml) {
+      return NextResponse.json(
+        { error: "O arquivo não parece ser um GPX (Wikiloc) nem um KML (HotAir)" },
+        { status: 400 }
+      );
     }
+    const ext = isKml ? "kml" : "gpx";
+    const contentType = isKml ? "application/vnd.google-earth.kml+xml" : "application/gpx+xml";
 
-    // Analisa no local real da decolagem (1º ponto do GPX) — funciona em
+    // Analisa no local real da decolagem (1º ponto da trilha) — funciona em
     // qualquer lugar, não só na base de Pedra Azul
     let analysis: FlightAnalysis;
     try {
-      const pts = parseGpx(xml);
+      const pts: TrackPoint[] = isKml ? parseKml(xml) : parseGpx(xml);
       const origin = pts[0];
       const forecast = await fetchForecast({ lat: origin.lat, lon: origin.lon, name: "Local do voo" });
       analysis = analyzeFlight(pts, file.name, forecast, origin.ele);
     } catch (e) {
       return NextResponse.json(
-        { error: e instanceof Error ? e.message : "Não consegui analisar este GPX" },
+        { error: e instanceof Error ? e.message : `Não consegui analisar este ${ext.toUpperCase()}` },
         { status: 422 }
       );
     }
@@ -45,18 +53,8 @@ export async function POST(req: NextRequest) {
     const noModels = Object.keys(analysis.models).length === 0;
     const stamp = analysis.startLocal.replace(/:/g, "h");
 
-    await put(`voos/${stamp}.gpx`, xml, {
-      access: "public",
-      addRandomSuffix: false,
-      allowOverwrite: true,
-      contentType: "application/gpx+xml",
-    });
-    await put(`voos/${stamp}.json`, JSON.stringify(analysis), {
-      access: "public",
-      addRandomSuffix: false,
-      allowOverwrite: true,
-      contentType: "application/json",
-    });
+    await saveText(`voos/${stamp}.${ext}`, xml, contentType);
+    await saveText(`voos/${stamp}.json`, JSON.stringify(analysis), "application/json");
 
     return NextResponse.json({
       ok: true,
@@ -75,20 +73,7 @@ export async function POST(req: NextRequest) {
 
 export async function GET() {
   try {
-    const { blobs } = await list({ prefix: "voos/", limit: 1000 });
-    const flights: FlightAnalysis[] = (
-      await Promise.all(
-        blobs
-          .filter((b) => b.pathname.endsWith(".json"))
-          .map(async (b) => {
-            try {
-              return (await (await fetch(b.url)).json()) as FlightAnalysis;
-            } catch {
-              return null;
-            }
-          })
-      )
-    ).filter((f): f is FlightAnalysis => f !== null);
+    const flights = await listJson<FlightAnalysis>("voos/");
 
     flights.sort((a, b) => (a.startLocal < b.startLocal ? 1 : -1));
 

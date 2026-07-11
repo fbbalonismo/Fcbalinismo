@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
-import { list, put } from "@vercel/blob";
 import { fetchForecast } from "@/lib/openmeteo";
 import { MODELS } from "@/lib/config";
+import { saveText, listJson } from "@/lib/store";
 
 // Registro de chuva observada na base + placar de realismo dos modelos.
 // Cada registro guarda um snapshot do que os 3 modelos previam para aquela
@@ -47,12 +47,11 @@ export async function POST(req: NextRequest) {
     }
 
     const record: RainRecord = { time, intensity, predicted };
-    await put(`chuva/${time.replace(":", "h")}.json`, JSON.stringify(record), {
-      access: "public",
-      addRandomSuffix: false,
-      allowOverwrite: true,
-      contentType: "application/json",
-    });
+    await saveText(
+      `chuva/${time.replace(":", "h")}.json`,
+      JSON.stringify(record),
+      "application/json"
+    );
     return NextResponse.json({ ok: true, record });
   } catch (e) {
     return NextResponse.json(
@@ -64,18 +63,7 @@ export async function POST(req: NextRequest) {
 
 export async function GET() {
   try {
-    const { blobs } = await list({ prefix: "chuva/", limit: 1000 });
-    const records: RainRecord[] = (
-      await Promise.all(
-        blobs.map(async (b) => {
-          try {
-            return (await (await fetch(b.url)).json()) as RainRecord;
-          } catch {
-            return null;
-          }
-        })
-      )
-    ).filter((r): r is RainRecord => r !== null);
+    const records = await listJson<RainRecord>("chuva/");
 
     records.sort((a, b) => (a.time < b.time ? 1 : -1));
 

@@ -36,6 +36,9 @@ yarn-error.log*
 # vercel
 .vercel
 
+# local dev data store (fallback quando não há Vercel Blob)
+/.data
+
 # typescript
 *.tsbuildinfo
 next-env.d.ts

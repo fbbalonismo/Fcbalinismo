@@ -128,10 +128,16 @@ export default function Home() {
   }, []);
 
   const loadRain = useCallback(() => {
-    fetch("/api/chuva").then((r) => r.json()).then(setRain).catch(() => {});
+    fetch("/api/chuva")
+      .then((r) => r.json())
+      .then((d) => setRain(d && !d.error ? d : null))
+      .catch(() => {});
   }, []);
   const loadFlights = useCallback(() => {
-    fetch("/api/voos").then((r) => r.json()).then(setFlights).catch(() => {});
+    fetch("/api/voos")
+      .then((r) => r.json())
+      .then((d) => setFlights(d && !d.error ? d : null))
+      .catch(() => {});
   }, []);
   useEffect(() => {
     loadRain();
@@ -655,15 +661,15 @@ export default function Home() {
           <div className="card">
             <div className="card-label">Enviar arquivo do voo</div>
             <p className="obs-help">
-              No Wikiloc: abra a trilha → menu ⋯ → <b>Exportar arquivo → GPX</b>. Envie até 2 dias depois do voo — a
-              ferramenta compara o traçado real com a previsão dos 3 modelos, faixa por faixa de altitude, e guarda
-              tudo no histórico.
+              Envie a trilha do voo em <b>GPX</b> (Wikiloc: trilha → menu ⋯ → Exportar arquivo → GPX) ou em <b>KML</b>{" "}
+              (HotAir: exportar a trilha do voo). Envie até 2 dias depois do voo — a ferramenta compara o traçado real
+              com a previsão dos 3 modelos, faixa por faixa de altitude, e guarda tudo no histórico.
             </p>
             <label className={busy ? "upload-btn disabled" : "upload-btn"}>
-              📂 Escolher arquivo .gpx
+              📂 Escolher arquivo .gpx ou .kml
               <input
                 type="file"
-                accept=".gpx,application/gpx+xml"
+                accept=".gpx,.kml,application/gpx+xml,application/vnd.google-earth.kml+xml"
                 style={{ display: "none" }}
                 disabled={busy}
                 onChange={(e) => {
@@ -680,7 +686,7 @@ export default function Home() {
             <div className="card-label">
               Média acumulada · {flights?.totalVoos ?? 0} {(flights?.totalVoos ?? 0) === 1 ? "voo" : "voos"}
             </div>
-            {flights && Object.keys(flights.media).length > 0 ? (
+            {flights?.media && Object.keys(flights.media).length > 0 ? (
               <div className="placar">
                 {MODELS.map((m) => {
                   const s = flights.media[m.label];
@@ -706,7 +712,7 @@ export default function Home() {
           </div>
         </div>
 
-        {flights && flights.flights.length > 0 && (
+        {flights?.flights && flights.flights.length > 0 && (
           <div className="flight-list">
             {flights.flights.map((f) => (
               <div key={f.startLocal} className="flight-row">
