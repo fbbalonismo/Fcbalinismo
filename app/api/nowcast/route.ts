@@ -2,8 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { assessRain } from "@/lib/rain/assess";
 import { BASE } from "@/lib/config";
 
-// Nowcast de chuva para um ponto: combina RainViewer + Open-Meteo (+ Climatempo/
-// AccuWeather quando houver chave) e diz se chove agora, a intensidade e se há
+// Nowcast de chuva para um ponto: combina RainViewer + Open-Meteo + AccuWeather
+// (MinuteCast, quando houver chave) e diz se chove agora, a intensidade e se há
 // nuvem de chuva se aproximando (com ETA em minutos).
 
 export const dynamic = "force-dynamic";

@@ -2,21 +2,20 @@ import { rainSeverity, type RainLevel, type RainStatus } from "./scale";
 import type { RainAssessment, SourceReading } from "./types";
 import { openMeteoNowcast } from "./openmeteo";
 import { rainViewerNowcast, rainViewerRadarTile } from "./rainviewer";
-import { accuWeatherNowcast, climatempoNowcast } from "./providers";
+import { accuWeatherNowcast } from "./providers";
 
 const APPROACH_WINDOW_MIN = 60; // "aproximação" só alerta se a chuva chega em até 1h
 
 // Consulta todas as fontes disponíveis para um ponto e combina numa avaliação.
 export async function assessRain(lat: number, lon: number): Promise<RainAssessment> {
-  const [openMeteo, rainViewer, accu, clima, radar] = await Promise.all([
+  const [openMeteo, rainViewer, accu, radar] = await Promise.all([
     openMeteoNowcast(lat, lon),
     rainViewerNowcast(lat, lon),
     accuWeatherNowcast(lat, lon),
-    climatempoNowcast(lat, lon),
     rainViewerRadarTile(),
   ]);
 
-  const sources: SourceReading[] = [openMeteo, rainViewer, accu, clima];
+  const sources: SourceReading[] = [openMeteo, rainViewer, accu];
   const usable = sources.filter((s) => s.ok);
 
   // 1) Alguma fonte diz que chove agora? → status = maior intensidade observada.

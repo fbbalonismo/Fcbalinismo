@@ -1,9 +1,8 @@
-import { classifyMm, isRaining } from "./scale";
 import type { SourceReading } from "./types";
 
-// Conectores de apps pagos/registro. Sem a chave no ambiente, retornam
-// `configured: false` (não atrapalham o alerta). Com a chave, fazem a chamada
-// real. Basta definir a env var e a fonte entra automaticamente na avaliação.
+// Conector de app pago/registro. Sem a chave no ambiente, retorna
+// `configured: false` (não atrapalha o alerta). Com a chave, faz a chamada real.
+// Basta definir a env var e a fonte entra automaticamente na avaliação.
 
 // ---------------------------------------------------------------------------
 // AccuWeather — MinuteCast dá a chuva minuto a minuto (ideal para "chegada").
@@ -53,56 +52,6 @@ export async function accuWeatherNowcast(lat: number, lon: number): Promise<Sour
       level: rainingNow ? "leve" : null,
       etaMin,
       note: summary ? `MinuteCast: ${summary}` : "sem chuva no MinuteCast",
-    };
-  } catch (e) {
-    return { ...base, configured: true, note: e instanceof Error ? e.message : "erro" };
-  }
-}
-
-// ---------------------------------------------------------------------------
-// Climatempo — API paga (token do Climatempo Advisor). Requer CLIMATEMPO_TOKEN.
-// Fluxo: localidade por lat/lon → id → clima atual (chuva mm). Como o endpoint
-// de localidade varia por plano, deixamos a chamada de "current" pronta e
-// documentada; sem token, retorna configured:false.
-// https://advisor.climatempo.com.br/
-// ---------------------------------------------------------------------------
-export async function climatempoNowcast(lat: number, lon: number): Promise<SourceReading> {
-  const base: SourceReading = {
-    source: "Climatempo",
-    ok: false,
-    configured: false,
-    rainingNow: false,
-    mmNow: null,
-    level: null,
-    etaMin: null,
-  };
-  const token = process.env.CLIMATEMPO_TOKEN;
-  if (!token) return { ...base, note: "sem CLIMATEMPO_TOKEN" };
-  try {
-    // 1) resolve o id da localidade mais próxima
-    const near = await fetch(
-      `https://apiadvisor.climatempo.com.br/api/v1/locale/city?token=${token}&latitude=${lat}&longitude=${lon}`
-    );
-    if (!near.ok) return { ...base, configured: true, note: `locale HTTP ${near.status}` };
-    const cities = await near.json();
-    const cityId = Array.isArray(cities) ? cities[0]?.id : cities?.id;
-    if (!cityId) return { ...base, configured: true, note: "sem cityId" };
-
-    // 2) clima atual (mm de chuva na hora)
-    const cur = await fetch(
-      `https://apiadvisor.climatempo.com.br/api/v1/weather/locale/${cityId}/current?token=${token}`
-    );
-    if (!cur.ok) return { ...base, configured: true, note: `current HTTP ${cur.status}` };
-    const data = await cur.json();
-    const mm = Number(data?.data?.rain?.precipitation ?? 0); // mm na hora ≈ mm/h
-    const level = classifyMm(mm);
-    return {
-      ...base,
-      ok: true,
-      configured: true,
-      rainingNow: isRaining(level),
-      mmNow: Math.round(mm * 100) / 100,
-      level,
     };
   } catch (e) {
     return { ...base, configured: true, note: e instanceof Error ? e.message : "erro" };

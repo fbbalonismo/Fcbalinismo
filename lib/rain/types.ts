@@ -2,9 +2,9 @@ import type { RainLevel, RainStatus } from "./scale";
 
 // Leitura de uma fonte de chuva para um ponto (lat/lon), agora.
 export interface SourceReading {
-  source: string; // "Open-Meteo", "RainViewer", "Climatempo", "AccuWeather"
+  source: string; // "Open-Meteo", "RainViewer", "AccuWeather"
   ok: boolean; // o conector rodou sem erro
-  configured: boolean; // tem chave/está disponível (Climatempo/AccuWeather precisam de chave)
+  configured: boolean; // tem chave/está disponível (AccuWeather precisa de chave)
   rainingNow: boolean;
   mmNow: number | null; // taxa de precipitação agora (mm/h)
   level: RainLevel | null; // classificação agora
