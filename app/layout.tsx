@@ -18,6 +18,14 @@ export const metadata: Metadata = {
   title: "Voe Pedra Azul — Vento em Camadas",
   description:
     "Previsão de vento em camadas de 100 m (até 1800 m acima da base) para a base Voe Pedra Azul, com trajetória de deriva do balão nos modelos ECMWF, GFS e ICON.",
+  applicationName: "Voe Pedra Azul",
+  // Abre em tela cheia (como app) quando adicionado à tela inicial do iPhone
+  appleWebApp: {
+    capable: true,
+    title: "Voe Pedra Azul",
+    statusBarStyle: "black-translucent",
+  },
+  other: { "apple-mobile-web-app-capable": "yes" },
 };
 
 export const viewport: Viewport = {
