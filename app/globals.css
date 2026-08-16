@@ -1364,3 +1364,162 @@ a:hover {
   color: var(--muted);
   line-height: 1.5;
 }
+
+/* Card "Voo perfeito" */
+.voop {
+  background: linear-gradient(160deg, #112c46, #0d2135);
+  border: 1px solid rgba(245, 166, 35, 0.35);
+  border-radius: 20px;
+  padding: 20px 22px;
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.4);
+}
+.voop-title {
+  text-align: center;
+  font-weight: 800;
+  color: #F5A623;
+  font-size: 16px;
+  margin-bottom: 16px;
+}
+.voop-sub {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 15px;
+  font-weight: 700;
+  margin-bottom: 12px;
+}
+.voop-sub span {
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  color: var(--muted);
+}
+.voop-banner {
+  border-radius: 12px;
+  padding: 12px 16px;
+  font-size: 14px;
+  line-height: 1.45;
+  margin-bottom: 18px;
+}
+.voop-banner.ok {
+  background: rgba(126, 217, 87, 0.12);
+  border: 1px solid rgba(126, 217, 87, 0.3);
+}
+.voop-banner.warn {
+  background: rgba(245, 166, 35, 0.12);
+  border: 1px solid rgba(245, 166, 35, 0.35);
+}
+.voop-body {
+  display: flex;
+  gap: 26px;
+  align-items: stretch;
+}
+.voop-bar-wrap {
+  position: relative;
+  width: 120px;
+  flex: none;
+  padding-left: 44px;
+}
+.voop-bar {
+  position: relative;
+  height: 300px;
+  width: 46px;
+  border-radius: 8px;
+  overflow: hidden;
+  background: rgba(10, 23, 36, 0.6);
+  border: 1px solid rgba(87, 183, 234, 0.2);
+}
+.voop-seg {
+  position: absolute;
+  left: 0;
+  width: 100%;
+  opacity: 0.9;
+}
+.voop-busca {
+  position: absolute;
+  left: 52px;
+  transform: translateY(-50%);
+  white-space: nowrap;
+  color: #F5A623;
+  font-weight: 700;
+  font-size: 13px;
+}
+.voop-ticks {
+  position: absolute;
+  left: 0;
+  top: 0;
+  height: 300px;
+  width: 40px;
+}
+.voop-tick {
+  position: absolute;
+  right: 6px;
+  transform: translateY(-50%);
+  font-size: 11px;
+  color: var(--muted);
+}
+.voop-axis {
+  position: absolute;
+  left: 0;
+  top: 306px;
+  font-size: 10px;
+  color: var(--muted);
+  width: 120px;
+}
+.voop-right {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.voop-legend {
+  font-size: 13px;
+  color: var(--text-soft);
+}
+.voop-mean {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  background: rgba(10, 23, 36, 0.5);
+  border: 1px solid rgba(87, 183, 234, 0.14);
+  border-left: 3px solid #7ED957;
+  border-radius: 12px;
+  padding: 12px 16px;
+}
+.voop-mean-k {
+  font-size: 12px;
+  color: var(--muted);
+}
+.voop-mean-v {
+  font-size: 16px;
+  font-weight: 700;
+}
+.voop-mean-speed {
+  font-size: 15px;
+  font-weight: 700;
+  color: #57B7EA;
+}
+.voop-wa {
+  display: block;
+  text-align: center;
+  background: #25D366;
+  color: #06301a;
+  font-weight: 800;
+  padding: 14px;
+  border-radius: 12px;
+  text-decoration: none;
+  margin-top: auto;
+}
+.voop-foot {
+  margin-top: 16px;
+  font-size: 12.5px;
+  color: var(--muted);
+  line-height: 1.5;
+}
+@media (max-width: 640px) {
+  .voop-body {
+    flex-direction: column;
+    gap: 18px;
+  }
+}

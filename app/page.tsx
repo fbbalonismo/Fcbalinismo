@@ -13,6 +13,7 @@ import type { RainAssessment } from "@/lib/rain/types";
 import Assistant from "@/components/Assistant";
 import CloudProfile from "@/components/CloudProfile";
 import AirSafety from "@/components/AirSafety";
+import VooPerfeito from "@/components/VooPerfeito";
 
 interface RainData {
   totalRegistros: number;
@@ -769,6 +770,25 @@ export default function Home() {
             <p className="loading">{data ? "Sem dados para este horário." : "Carregando…"}</p>
           )}
         </div>
+      </section>
+
+      <section id="voo-perfeito" className="wrap" style={{ paddingTop: 56 }}>
+        <div className="kicker">Plano de voo</div>
+        <h2 className="section-title" style={{ marginBottom: 20 }}>
+          Voo perfeito
+        </h2>
+        {active ? (
+          <VooPerfeito
+            layers={active.layers}
+            modelLabel={activeMeta.label}
+            dateLabel={dateLabel}
+            hour={hour}
+            atBase={!loc}
+            whatsapp={WHATSAPP}
+          />
+        ) : (
+          <p className="loading">{data ? "Sem dados para este horário." : "Carregando…"}</p>
+        )}
       </section>
 
       <section id="seguranca" className="wrap" style={{ paddingTop: 56 }}>
