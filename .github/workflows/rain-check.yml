@@ -1,0 +1,21 @@
+name: Rain check (nowcast push)
+
+# Cron externo gratuito (o plano Hobby da Vercel só permite cron 1x/dia).
+# A cada ~15 min bate no endpoint que avalia a chuva de cada assinatura e
+# dispara as notificações Web Push. Precisa estar na branch padrão (main) para
+# o agendamento rodar, e do secret PUSH_CRON_SECRET no repositório.
+
+on:
+  schedule:
+    - cron: "*/15 * * * *"
+  workflow_dispatch: {}
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger /api/push/check
+        run: |
+          curl -sS -m 30 \
+            "https://voe-pedra-azul-lilac.vercel.app/api/push/check?secret=${{ secrets.PUSH_CRON_SECRET }}" \
+            -w "\nHTTP %{http_code}\n" || true

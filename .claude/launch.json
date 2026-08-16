@@ -3,10 +3,9 @@
   "configurations": [
     {
       "name": "voe-dev",
-      "runtimeExecutable": "npm",
-      "runtimeArgs": ["run", "dev"],
-      "port": 3000,
-      "autoPort": true
+      "runtimeExecutable": "/Users/andreleibel/voe-pedra-azul/.claude/run-dev.sh",
+      "runtimeArgs": [],
+      "port": 3000
     }
   ]
 }

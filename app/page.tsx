@@ -12,6 +12,7 @@ import { RAIN_LABELS } from "@/lib/rain/scale";
 import type { RainAssessment } from "@/lib/rain/types";
 import Assistant from "@/components/Assistant";
 import CloudProfile from "@/components/CloudProfile";
+import AirSafety from "@/components/AirSafety";
 
 interface RainData {
   totalRegistros: number;
@@ -70,17 +71,6 @@ function shiftTime(hhmm: string, minutes: number): string {
   const [h, m] = hhmm.split(":").map(Number);
   const total = (h * 60 + m + minutes + 1440) % 1440;
   return `${String(Math.floor(total / 60)).padStart(2, "0")}:${String(total % 60).padStart(2, "0")}`;
-}
-
-function verdict(layers: LayerWind[], surfaceKt: number | null) {
-  const ops = layers.filter((l) => l.m <= 1000);
-  const maxKt = Math.max(...ops.map((l) => l.kt));
-  const sfc = surfaceKt ?? 0;
-  if (sfc <= 5 && maxKt <= 10)
-    return { label: "Bom para voar", hint: "Vento calmo nas camadas baixas.", color: "#7ED957" };
-  if (sfc <= 8 && maxKt <= 15)
-    return { label: "Atenção", hint: "Vento moderado — decisão do piloto.", color: "#F5A623" };
-  return { label: "Não voar", hint: "Vento forte nas camadas baixas.", color: "#EF5D5D" };
 }
 
 // Classifica nevoeiro / névoa baixa a partir dos sinais do modelo.
@@ -590,7 +580,6 @@ export default function Home() {
               <div className="card-label">Condição de decolagem</div>
               {active ? (
                 <>
-                  <SemaphoreRow hour={active} />
                   <div className="facts-row">
                     <div className="fact">
                       <div className="k">Vento superfície</div>
@@ -780,6 +769,21 @@ export default function Home() {
             <p className="loading">{data ? "Sem dados para este horário." : "Carregando…"}</p>
           )}
         </div>
+      </section>
+
+      <section id="seguranca" className="wrap" style={{ paddingTop: 56 }}>
+        <div className="kicker">Segurança</div>
+        <h2 className="section-title" style={{ marginBottom: 8 }}>
+          Segurança do ar
+        </h2>
+        <p style={{ fontSize: 14, color: "var(--muted)", marginBottom: 20 }}>
+          Cinco fatores que afetam a qualidade e a segurança do voo, para {dateLabel} · {String(hour).padStart(2, "0")}:00.
+        </p>
+        {active && data ? (
+          <AirSafety hour={active} elevationM={data.elevation} modelLabel={activeMeta.label} />
+        ) : (
+          <p className="loading">{data ? "Sem dados para este horário." : "Carregando…"}</p>
+        )}
       </section>
 
       <section id="chuva" className="wrap" style={{ paddingTop: 56 }}>
@@ -1123,21 +1127,6 @@ export default function Home() {
           ⚠️ Estimativa operacional — <b>confirmar localmente antes da decolagem. A decisão de voo é sempre do piloto.</b>
         </div>
       </footer>
-    </div>
-  );
-}
-
-function SemaphoreRow({ hour }: { hour: HourForecast }) {
-  const v = verdict(hour.layers, hour.surface?.kt ?? null);
-  return (
-    <div className="sem-row">
-      <div className="sem-chip" style={{ background: v.color }}>
-        <span />
-      </div>
-      <div>
-        <div className="sem-title">{v.label}</div>
-        <div className="sem-hint">{v.hint}</div>
-      </div>
     </div>
   );
 }

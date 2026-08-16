@@ -15,6 +15,8 @@ export interface HourForecast {
   cloudHighPct: number | null; // cobertura de nuvem alta (%) — acima de ~8 km
   rhPct: number | null; // umidade relativa a 2 m (%)
   dewC: number | null; // ponto de orvalho a 2 m (°C)
+  capeJkg: number | null; // energia potencial convectiva (J/kg) — instabilidade/tempestade
+  pressureHpa: number | null; // pressão à superfície (hPa) — altitude-densidade
   layers: LayerWind[];
   drift: DriftPoint[];
 }
@@ -52,6 +54,8 @@ function buildUrl(loc: Loc): string {
     "cloud_cover_high",
     "relative_humidity_2m",
     "dew_point_2m",
+    "cape",
+    "surface_pressure",
   ];
   for (const p of PRESSURE_LEVELS) {
     vars.push(`wind_speed_${p}hPa`, `wind_direction_${p}hPa`, `geopotential_height_${p}hPa`);
@@ -135,6 +139,8 @@ export async function fetchForecast(customLoc?: Loc): Promise<ForecastResponse> 
       const cloudHigh = num(hourly, `cloud_cover_high_${model.id}`, i);
       const rh = num(hourly, `relative_humidity_2m_${model.id}`, i);
       const dew = num(hourly, `dew_point_2m_${model.id}`, i);
+      const cape = num(hourly, `cape_${model.id}`, i);
+      const pressure = num(hourly, `surface_pressure_${model.id}`, i);
       const layers = interpolateLayers(profile);
       return {
         time,
@@ -148,6 +154,8 @@ export async function fetchForecast(customLoc?: Loc): Promise<ForecastResponse> 
         cloudHighPct: cloudHigh !== null ? Math.round(cloudHigh) : null,
         rhPct: rh !== null ? Math.round(rh) : null,
         dewC: dew !== null ? Math.round(dew * 10) / 10 : null,
+        capeJkg: cape !== null ? Math.round(cape) : null,
+        pressureHpa: pressure !== null ? Math.round(pressure * 10) / 10 : null,
         surface:
           sfcKt !== null && sfcDir !== null
             ? { kt: Math.round(sfcKt * 10) / 10, from: Math.round(sfcDir), to: Math.round((sfcDir + 180) % 360) }
