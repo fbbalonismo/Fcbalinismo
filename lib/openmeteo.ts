@@ -10,7 +10,9 @@ export interface HourForecast {
   // Sinais de nevoeiro / névoa baixa (para alerta na condição de decolagem)
   weatherCode: number | null; // WMO: 45 = nevoeiro, 48 = nevoeiro com geada
   visibilityM: number | null; // visibilidade horizontal (m)
-  cloudLowPct: number | null; // cobertura de nuvem baixa (%)
+  cloudLowPct: number | null; // cobertura de nuvem baixa (%) — 0 a ~3 km
+  cloudMidPct: number | null; // cobertura de nuvem média (%) — ~3 a 8 km
+  cloudHighPct: number | null; // cobertura de nuvem alta (%) — acima de ~8 km
   rhPct: number | null; // umidade relativa a 2 m (%)
   dewC: number | null; // ponto de orvalho a 2 m (°C)
   layers: LayerWind[];
@@ -46,6 +48,8 @@ function buildUrl(loc: Loc): string {
     "weather_code",
     "visibility",
     "cloud_cover_low",
+    "cloud_cover_mid",
+    "cloud_cover_high",
     "relative_humidity_2m",
     "dew_point_2m",
   ];
@@ -127,6 +131,8 @@ export async function fetchForecast(customLoc?: Loc): Promise<ForecastResponse> 
       const wcode = num(hourly, `weather_code_${model.id}`, i);
       const vis = num(hourly, `visibility_${model.id}`, i);
       const cloudLow = num(hourly, `cloud_cover_low_${model.id}`, i);
+      const cloudMid = num(hourly, `cloud_cover_mid_${model.id}`, i);
+      const cloudHigh = num(hourly, `cloud_cover_high_${model.id}`, i);
       const rh = num(hourly, `relative_humidity_2m_${model.id}`, i);
       const dew = num(hourly, `dew_point_2m_${model.id}`, i);
       const layers = interpolateLayers(profile);
@@ -138,6 +144,8 @@ export async function fetchForecast(customLoc?: Loc): Promise<ForecastResponse> 
         weatherCode: wcode !== null ? Math.round(wcode) : null,
         visibilityM: vis !== null ? Math.round(vis) : null,
         cloudLowPct: cloudLow !== null ? Math.round(cloudLow) : null,
+        cloudMidPct: cloudMid !== null ? Math.round(cloudMid) : null,
+        cloudHighPct: cloudHigh !== null ? Math.round(cloudHigh) : null,
         rhPct: rh !== null ? Math.round(rh) : null,
         dewC: dew !== null ? Math.round(dew * 10) / 10 : null,
         surface:

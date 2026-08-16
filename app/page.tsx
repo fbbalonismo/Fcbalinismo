@@ -11,6 +11,7 @@ import type { FlightAnalysis } from "@/lib/gpx";
 import { RAIN_LABELS } from "@/lib/rain/scale";
 import type { RainAssessment } from "@/lib/rain/types";
 import Assistant from "@/components/Assistant";
+import CloudProfile from "@/components/CloudProfile";
 
 interface RainData {
   totalRegistros: number;
@@ -754,6 +755,30 @@ export default function Home() {
             </span>
             <span style={{ marginLeft: "auto" }}>Seta aponta para onde o balão vai · alturas acima da base (1062 m)</span>
           </div>
+        </div>
+
+        <div className="layers-card" style={{ marginTop: 16 }}>
+          <div className="card-label">Nuvens e neblinas</div>
+          {active ? (
+            <>
+              <div className="cloud-wrap">
+                <CloudProfile
+                  low={active.cloudLowPct}
+                  mid={active.cloudMidPct}
+                  high={active.cloudHighPct}
+                  visibilityM={active.visibilityM}
+                />
+              </div>
+              <div className="legend-row" style={{ marginTop: 6 }}>
+                <span>Cobertura por altura — baixas 0–3 km · médias 3–8 km · altas 8–12 km. A faixa dourada é onde o balão voa.</span>
+                <span style={{ marginLeft: "auto" }}>
+                  {active.visibilityM != null ? `Visibilidade: ${(active.visibilityM / 1000).toFixed(1)} km` : ""}
+                </span>
+              </div>
+            </>
+          ) : (
+            <p className="loading">{data ? "Sem dados para este horário." : "Carregando…"}</p>
+          )}
         </div>
       </section>
 

@@ -1282,3 +1282,9 @@ a:hover {
   border-color: rgba(239, 93, 93, 0.45);
   color: #ffb4b4;
 }
+
+/* Desenho de nuvens por altura */
+.cloud-wrap {
+  max-width: 460px;
+  margin: 10px auto 4px;
+}
