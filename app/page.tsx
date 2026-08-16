@@ -82,6 +82,22 @@ function verdict(layers: LayerWind[], surfaceKt: number | null) {
   return { label: "Não voar", hint: "Vento forte nas camadas baixas.", color: "#EF5D5D" };
 }
 
+// Classifica nevoeiro / névoa baixa a partir dos sinais do modelo.
+// "nevoeiro" = visibilidade < 1 km (ou código WMO 45/48) — névoa baixa em solo;
+// "nevoa" = visibilidade reduzida (< 4 km) ou quase saturado com nuvem baixa densa.
+function fogLevel(h: HourForecast | undefined): "nevoeiro" | "nevoa" | null {
+  if (!h) return null;
+  const { weatherCode: code, visibilityM: vis, rhPct: rh, cloudLowPct: low, tempC, dewC } = h;
+  const spread = tempC != null && dewC != null ? tempC - dewC : null;
+  if (code === 45 || code === 48 || (vis != null && vis < 1000)) return "nevoeiro";
+  if (
+    (vis != null && vis < 4000) ||
+    (rh != null && rh >= 96 && low != null && low >= 80 && (spread == null || spread <= 1.5))
+  )
+    return "nevoa";
+  return null;
+}
+
 function driftEndInfo(hour: HourForecast | undefined, origin: { lat: number; lon: number }) {
   const end = hour?.drift.at(-1);
   if (!end) return null;
@@ -383,6 +399,68 @@ export default function Home() {
     return { pct, avgKm, maxSep };
   }, [byModel, data]);
 
+  // Alertas da condição de decolagem: chuva na janela ±2 h do horário, e
+  // nevoeiro/névoa baixa (no amanhecer 4h–8h e junto ao horário do voo).
+  const takeoffAlerts = useMemo(() => {
+    if (!data) return [] as { level: "warn" | "danger"; text: string }[];
+    const alerts: { level: "warn" | "danger"; text: string }[] = [];
+    const hourAt = (hh: number, mid: ModelId) =>
+      hh >= 0 && hh <= 23
+        ? data.models[mid]?.hours.find((x) => x.time === `${dateISO}T${String(hh).padStart(2, "0")}:00`)
+        : undefined;
+    const hhLabel = (hs: number[]) => hs.map((h) => `${h}h`).join(", ");
+
+    // 1) Chuva na janela ±2 h do horário escolhido (qualquer modelo com ≥ 0,2 mm/h)
+    const rainHits: number[] = [];
+    for (let hh = hour - 2; hh <= hour + 2; hh++) {
+      if (MODELS.some((m) => (hourAt(hh, m.id)?.precipMm ?? 0) >= 0.2)) rainHits.push(hh);
+    }
+    if (rainHits.length) {
+      alerts.push({
+        level: "warn",
+        text: `🌧️ Possibilidade de chuva na janela do voo (±2 h): previsão de precipitação às ${hhLabel(rainHits)}. Reavalie perto da hora.`,
+      });
+    }
+
+    // 2) Nevoeiro / névoa baixa no amanhecer (4h–8h), qualquer modelo
+    const worstFog = (hh: number): "nevoeiro" | "nevoa" | null => {
+      let worst: "nevoeiro" | "nevoa" | null = null;
+      for (const m of MODELS) {
+        const lvl = fogLevel(hourAt(hh, m.id));
+        if (lvl === "nevoeiro") return "nevoeiro";
+        if (lvl === "nevoa") worst = "nevoa";
+      }
+      return worst;
+    };
+    const dawn: { hh: number; lvl: "nevoeiro" | "nevoa" }[] = [];
+    for (let hh = 4; hh <= 8; hh++) {
+      const lvl = worstFog(hh);
+      if (lvl) dawn.push({ hh, lvl });
+    }
+    if (dawn.length) {
+      const heavy = dawn.some((d) => d.lvl === "nevoeiro");
+      alerts.push({
+        level: heavy ? "danger" : "warn",
+        text: `🌫️ ${heavy ? "Nevoeiro" : "Névoa baixa"} previsto no amanhecer (${hhLabel(dawn.map((d) => d.hh))}). Visibilidade reduzida entre 4h e 8h — confirme visualmente antes de inflar.`,
+      });
+    }
+
+    // 3) Névoa baixa EM SOLO (nevoeiro) na janela ±2 h do horário, fora do amanhecer
+    const groundFog: number[] = [];
+    for (let hh = hour - 2; hh <= hour + 2; hh++) {
+      if (hh >= 4 && hh <= 8) continue; // já coberto pelo alerta do amanhecer
+      if (worstFog(hh) === "nevoeiro") groundFog.push(hh);
+    }
+    if (groundFog.length) {
+      alerts.push({
+        level: "danger",
+        text: `🌫️ Névoa baixa em solo prevista perto do horário do voo (${hhLabel(groundFog)}). Piloto: avalie a visibilidade real e adie a decolagem se necessário.`,
+      });
+    }
+
+    return alerts;
+  }, [data, dateISO, hour]);
+
   const dateLabel = new Date(`${targetTime}:00-03:00`).toLocaleDateString("pt-BR", {
     weekday: "short",
     day: "2-digit",
@@ -530,6 +608,15 @@ export default function Home() {
                       <div className="v">{agreement ? `${agreement.pct}%` : "—"}</div>
                     </div>
                   </div>
+                  {takeoffAlerts.length > 0 && (
+                    <div className="takeoff-alerts">
+                      {takeoffAlerts.map((a, i) => (
+                        <div key={i} className={`takeoff-alert ${a.level}`}>
+                          {a.text}
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </>
               ) : (
                 <p className="loading">{data ? "Sem dados para este horário." : "Carregando previsão…"}</p>

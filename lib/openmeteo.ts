@@ -7,6 +7,12 @@ export interface HourForecast {
   gustKt: number | null;
   tempC: number | null;
   precipMm: number | null;
+  // Sinais de nevoeiro / névoa baixa (para alerta na condição de decolagem)
+  weatherCode: number | null; // WMO: 45 = nevoeiro, 48 = nevoeiro com geada
+  visibilityM: number | null; // visibilidade horizontal (m)
+  cloudLowPct: number | null; // cobertura de nuvem baixa (%)
+  rhPct: number | null; // umidade relativa a 2 m (%)
+  dewC: number | null; // ponto de orvalho a 2 m (°C)
   layers: LayerWind[];
   drift: DriftPoint[];
 }
@@ -31,7 +37,18 @@ export interface ForecastResponse {
 type Hourly = Record<string, (number | null)[] | string[]>;
 
 function buildUrl(loc: Loc): string {
-  const vars: string[] = ["wind_speed_10m", "wind_direction_10m", "wind_gusts_10m", "temperature_2m", "precipitation"];
+  const vars: string[] = [
+    "wind_speed_10m",
+    "wind_direction_10m",
+    "wind_gusts_10m",
+    "temperature_2m",
+    "precipitation",
+    "weather_code",
+    "visibility",
+    "cloud_cover_low",
+    "relative_humidity_2m",
+    "dew_point_2m",
+  ];
   for (const p of PRESSURE_LEVELS) {
     vars.push(`wind_speed_${p}hPa`, `wind_direction_${p}hPa`, `geopotential_height_${p}hPa`);
   }
@@ -107,12 +124,22 @@ export async function fetchForecast(customLoc?: Loc): Promise<ForecastResponse> 
       const gust = num(hourly, `wind_gusts_10m_${model.id}`, i);
       const temp = num(hourly, `temperature_2m_${model.id}`, i);
       const precip = num(hourly, `precipitation_${model.id}`, i);
+      const wcode = num(hourly, `weather_code_${model.id}`, i);
+      const vis = num(hourly, `visibility_${model.id}`, i);
+      const cloudLow = num(hourly, `cloud_cover_low_${model.id}`, i);
+      const rh = num(hourly, `relative_humidity_2m_${model.id}`, i);
+      const dew = num(hourly, `dew_point_2m_${model.id}`, i);
       const layers = interpolateLayers(profile);
       return {
         time,
         gustKt: gust !== null ? Math.round(gust * 10) / 10 : null,
         tempC: temp !== null ? Math.round(temp) : null,
         precipMm: precip !== null ? Math.round(precip * 100) / 100 : null,
+        weatherCode: wcode !== null ? Math.round(wcode) : null,
+        visibilityM: vis !== null ? Math.round(vis) : null,
+        cloudLowPct: cloudLow !== null ? Math.round(cloudLow) : null,
+        rhPct: rh !== null ? Math.round(rh) : null,
+        dewC: dew !== null ? Math.round(dew * 10) / 10 : null,
         surface:
           sfcKt !== null && sfcDir !== null
             ? { kt: Math.round(sfcKt * 10) / 10, from: Math.round(sfcDir), to: Math.round((sfcDir + 180) % 360) }

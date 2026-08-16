@@ -1257,3 +1257,28 @@ a:hover {
   opacity: 0.5;
   cursor: default;
 }
+
+/* Alertas da condição de decolagem (chuva / nevoeiro / névoa baixa) */
+.takeoff-alerts {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 14px;
+}
+.takeoff-alert {
+  font-size: 13px;
+  line-height: 1.45;
+  padding: 9px 12px;
+  border-radius: 10px;
+  border: 1px solid transparent;
+}
+.takeoff-alert.warn {
+  background: rgba(245, 166, 35, 0.12);
+  border-color: rgba(245, 166, 35, 0.4);
+  color: #ffd591;
+}
+.takeoff-alert.danger {
+  background: rgba(239, 93, 93, 0.13);
+  border-color: rgba(239, 93, 93, 0.45);
+  color: #ffb4b4;
+}
