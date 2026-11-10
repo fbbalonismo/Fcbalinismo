@@ -12,6 +12,7 @@ import { RAIN_LABELS } from "@/lib/rain/scale";
 import type { RainAssessment } from "@/lib/rain/types";
 import Assistant from "@/components/Assistant";
 import CloudProfile from "@/components/CloudProfile";
+import FrentesCard from "@/components/FrentesCard";
 
 interface RainData {
   totalRegistros: number;
@@ -780,6 +781,8 @@ export default function Home() {
             <p className="loading">{data ? "Sem dados para este horário." : "Carregando…"}</p>
           )}
         </div>
+
+        <FrentesCard lat={loc?.lat ?? BASE.lat} lon={loc?.lon ?? BASE.lon} hour={hour} />
       </section>
 
       <section id="chuva" className="wrap" style={{ paddingTop: 56 }}>
