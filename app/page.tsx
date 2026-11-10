@@ -12,6 +12,7 @@ import { RAIN_LABELS } from "@/lib/rain/scale";
 import type { RainAssessment } from "@/lib/rain/types";
 import Assistant from "@/components/Assistant";
 import CloudProfile from "@/components/CloudProfile";
+import WindLayers from "@/components/WindLayers";
 
 interface RainData {
   totalRegistros: number;
@@ -60,12 +61,6 @@ function dateForDay(offset: number): string {
   return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
 }
 
-function speedColor(kt: number) {
-  if (kt < 7) return "#7ED957";
-  if (kt < 12) return "#F5A623";
-  return "#EF5D5D";
-}
-
 function shiftTime(hhmm: string, minutes: number): string {
   const [h, m] = hhmm.split(":").map(Number);
   const total = (h * 60 + m + minutes + 1440) % 1440;
@@ -108,21 +103,6 @@ function driftEndInfo(hour: HourForecast | undefined, origin: { lat: number; lon
   const km = Math.hypot(dx, dy) / 1000;
   const bearing = (Math.atan2(dx, dy) / DEG + 360) % 360;
   return { km, bearing, dx, dy };
-}
-
-function Arrow({ to, size = 18 }: { to: number; size?: number }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 24 24" style={{ transform: `rotate(${to}deg)` }} aria-hidden>
-      <path
-        d="M12 2 L12 20 M12 2 L6 9 M12 2 L18 9"
-        stroke="#EAF2FB"
-        strokeWidth="2.4"
-        fill="none"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-    </svg>
-  );
 }
 
 export default function Home() {
@@ -729,33 +709,7 @@ export default function Home() {
           </div>
         </div>
 
-        <div className="layers-card">
-          <div className="layer-head">
-            <div>Altitude</div>
-            <div>Dir</div>
-            <div>Velocidade</div>
-            <div style={{ textAlign: "right" }}>De → para</div>
-          </div>
-          {active?.surface && <LayerRow altLabel="Solo" ft={null} kt={active.surface.kt} from={active.surface.from} to={active.surface.to} />}
-          {active?.layers.map((l) => (
-            <LayerRow key={l.m} altLabel={`${l.m} m`} ft={l.ft} kt={l.kt} from={l.from} to={l.to} />
-          ))}
-          <div className="legend-row">
-            <span>
-              <span className="sw" style={{ background: "#7ED957" }} />
-              Calmo
-            </span>
-            <span>
-              <span className="sw" style={{ background: "#F5A623" }} />
-              Moderado
-            </span>
-            <span>
-              <span className="sw" style={{ background: "#EF5D5D" }} />
-              Forte
-            </span>
-            <span style={{ marginLeft: "auto" }}>Seta aponta para onde o balão vai · alturas acima da base (1062 m)</span>
-          </div>
-        </div>
+        <WindLayers byModel={byModel} model={model} onModel={setModel} elevation={data?.elevation ?? null} />
 
         <div className="layers-card" style={{ marginTop: 16 }}>
           <div className="card-label">Nuvens e neblinas</div>
@@ -1137,42 +1091,6 @@ function SemaphoreRow({ hour }: { hour: HourForecast }) {
       <div>
         <div className="sem-title">{v.label}</div>
         <div className="sem-hint">{v.hint}</div>
-      </div>
-    </div>
-  );
-}
-
-function LayerRow({
-  altLabel,
-  ft,
-  kt,
-  from,
-  to,
-}: {
-  altLabel: string;
-  ft: number | null;
-  kt: number;
-  from: number;
-  to: number;
-}) {
-  const pct = Math.min(100, (kt / 20) * 100);
-  return (
-    <div className="layer-row">
-      <div className="layer-alt">
-        {altLabel}
-        {ft !== null && <small>{ft.toLocaleString("pt-BR")} ft</small>}
-      </div>
-      <div className="layer-arrow">
-        <Arrow to={to} />
-      </div>
-      <div className="layer-bar-wrap">
-        <div className="layer-bar">
-          <i style={{ width: `${pct}%`, background: speedColor(kt) }} />
-        </div>
-        <div className="layer-kt">{ktToKmh(kt).toFixed(0)} km/h</div>
-      </div>
-      <div className="layer-dir">
-        de {from}° → {to}° {cardinal(to)}
       </div>
     </div>
   );
